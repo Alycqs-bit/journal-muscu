@@ -11,8 +11,8 @@ let openKey = null;
 let timerInterval = null;
 
 function $(id) { return document.getElementById(id); }
-function show(id) { $(id).hidden = false; }
-function hide(id) { $(id).hidden = true; }
+function show(id) { $(id).style.display = ""; }
+function hide(id) { $(id).style.display = "none"; }
 
 function showView(name) {
   ["view-connect", "view-accueil", "view-seance", "view-fin"].forEach(hide);
