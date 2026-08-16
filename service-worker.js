@@ -1,4 +1,4 @@
-const CACHE_NAME = "journal-muscu-v1";
+const CACHE_NAME = "journal-muscu-v2";
 const ASSETS = ["./", "./index.html", "./manifest.json", "./icon.svg", "./app.js"];
 
 self.addEventListener("install", (event) => {
