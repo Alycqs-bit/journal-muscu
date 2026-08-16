@@ -11,6 +11,21 @@
 </head>
 <body>
 
+  <div id="debug-error"></div>
+  <script>
+    function showDebugError(msg) {
+      var el = document.getElementById("debug-error");
+      el.textContent = msg;
+      el.style.display = "block";
+    }
+    window.onerror = function (msg, src, line, col) {
+      showDebugError("Erreur JS : " + msg + " @ " + (src || "").split("/").pop() + ":" + line);
+    };
+    window.addEventListener("unhandledrejection", function (ev) {
+      showDebugError("Erreur (promise) : " + (ev.reason && ev.reason.message ? ev.reason.message : ev.reason));
+    });
+  </script>
+
   <div id="view-connect" class="view">
     <h1>Journal Muscu</h1>
     <p id="status">Chargement…</p>

@@ -19,7 +19,12 @@ btnConnect.onclick = () => {
       statusEl.textContent = "Erreur de connexion : " + result.error;
       return;
     }
-    renderAccueil();
+    try {
+      renderAccueil();
+    } catch (err) {
+      showDebugError("Erreur après connexion : " + err.message);
+      console.error(err);
+    }
   });
 };
 
