@@ -6,41 +6,45 @@
 <title>Journal Muscu</title>
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="style.css">
 <meta name="theme-color" content="#0f172a">
-<style>
-  body {
-    margin: 0;
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 1rem;
-    background: #0f172a;
-    color: #e2e8f0;
-    font-family: system-ui, sans-serif;
-    text-align: center;
-    padding: 1.5rem;
-  }
-  h1 { margin: 0; font-size: 1.8rem; }
-  p { margin: 0; opacity: 0.8; }
-  button {
-    font-size: 1.1rem;
-    padding: 0.9rem 1.6rem;
-    border-radius: 0.75rem;
-    border: none;
-    background: #2563eb;
-    color: white;
-    font-weight: 600;
-  }
-  button:disabled { opacity: 0.5; }
-</style>
 </head>
 <body>
-  <h1>Journal Muscu</h1>
-  <p id="status">Chargement…</p>
-  <button id="btn-connect" disabled>Se connecter avec Google</button>
+
+  <div id="view-connect" class="view">
+    <h1>Journal Muscu</h1>
+    <p id="status">Chargement…</p>
+    <button id="btn-connect" class="btn-primary" disabled>Se connecter avec Google</button>
+  </div>
+
+  <div id="view-accueil" class="view" hidden>
+    <h1>Journal Muscu</h1>
+    <div id="derniere-seance-resume"></div>
+    <button id="btn-demarrer" class="btn-primary"></button>
+  </div>
+
+  <div id="view-seance" class="view" hidden>
+    <header class="seance-header">
+      <h1 id="seance-titre"></h1>
+      <button id="btn-terminer-seance">Terminer</button>
+    </header>
+    <p id="echauffement-rappel" class="echauffement"></p>
+    <div id="blocs-container"></div>
+  </div>
+  <div id="rest-timer" class="rest-timer" hidden></div>
+
+  <div id="view-fin" class="view" hidden>
+    <h1>Fin de séance</h1>
+    <textarea id="commentaire-seance" placeholder="Commentaire de séance…"></textarea>
+    <div id="tags-container" class="tags-container"></div>
+    <button id="btn-valider-archiver" class="btn-primary">Valider et archiver</button>
+    <p id="resume-preview"></p>
+  </div>
+
   <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script src="drive.js"></script>
+  <script src="store.js"></script>
+  <script src="ui.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

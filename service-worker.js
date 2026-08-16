@@ -1,5 +1,15 @@
-const CACHE_NAME = "journal-muscu-v3";
-const ASSETS = ["./", "./index.html", "./manifest.json", "./icon.svg", "./app.js"];
+const CACHE_NAME = "journal-muscu-v4";
+const ASSETS = [
+  "./",
+  "./index.html",
+  "./manifest.json",
+  "./icon.svg",
+  "./style.css",
+  "./drive.js",
+  "./store.js",
+  "./ui.js",
+  "./app.js",
+];
 
 self.addEventListener("install", (event) => {
   self.skipWaiting();
