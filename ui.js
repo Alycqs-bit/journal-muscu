@@ -179,6 +179,9 @@ function renderSaisie(e, exo, bi, ei, perfPassee) {
     wrap.appendChild(renderStepper("Reps", state.reps, 1, (v) => { state.reps = v; renderSeance(); }));
   }
   wrap.appendChild(renderStepper("Charge (kg)", state.charge, 2.5, (v) => { state.charge = v; renderSeance(); }));
+  if (exo.type_mesure === "reps_charge" || exo.type_mesure === "reps_seules") {
+    wrap.appendChild(renderRirSelector(state));
+  }
 
   const row = document.createElement("div");
   row.className = "saisie-actions";
@@ -197,6 +200,7 @@ function renderSaisie(e, exo, bi, ei, perfPassee) {
   btnValider.textContent = "Valider la série";
   btnValider.onclick = () => {
     const serie = exo.type_mesure === "temps_charge" ? { charge: state.charge } : { reps: state.reps, charge: state.charge };
+    if (state.rir != null) serie.rir = state.rir;
     ajouterSerie(e, exo, bi, ei, serie);
   };
   row.appendChild(btnValider);
@@ -210,7 +214,24 @@ function defaultDraft(exo, e, perfPassee) {
   return {
     reps: (ref && ref.reps) ?? (exo.cible_reps ? exo.cible_reps[0] : 0),
     charge: (ref && ref.charge) ?? 0,
+    rir: null,
   };
+}
+
+function renderRirSelector(state) {
+  const row = document.createElement("div");
+  row.className = "rir-selector";
+  const label = document.createElement("span");
+  label.textContent = "RIR";
+  row.appendChild(label);
+  [0, 1, 2, 3, 4].forEach((n) => {
+    const b = document.createElement("button");
+    b.textContent = n;
+    b.className = state.rir === n ? "selected" : "";
+    b.onclick = () => { state.rir = state.rir === n ? null : n; renderSeance(); };
+    row.appendChild(b);
+  });
+  return row;
 }
 
 function renderStepper(label, value, step, onChange) {
