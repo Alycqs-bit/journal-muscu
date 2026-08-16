@@ -24,11 +24,23 @@
   }
   h1 { margin: 0; font-size: 1.8rem; }
   p { margin: 0; opacity: 0.8; }
+  button {
+    font-size: 1.1rem;
+    padding: 0.9rem 1.6rem;
+    border-radius: 0.75rem;
+    border: none;
+    background: #2563eb;
+    color: white;
+    font-weight: 600;
+  }
+  button:disabled { opacity: 0.5; }
 </style>
 </head>
 <body>
   <h1>Journal Muscu</h1>
   <p id="status">Chargement…</p>
+  <button id="btn-connect" disabled>Se connecter avec Google</button>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script src="app.js"></script>
 </body>
 </html>
