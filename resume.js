@@ -82,14 +82,14 @@ function buildResumeMarkdown(archive) {
 
   L.push("", "## Écarts au programme", ecarts.length ? ecarts.join("\n") : "Aucun écart.");
 
-  L.push("", "## Records", `*Calculés uniquement sur les séances « ${modele.nom} ».*`);
+  L.push("", "## Records");
   for (const x of archive.exos) {
     if (!seriesTravail(x.series).length) continue;
     const exo = Store.getExo(x.exo_id);
-    const rs = Store.getRecordSerie(x.exo_id, archive.modele);
-    const rt = Store.getRecordSeance(x.exo_id, archive.modele);
+    const rs = Store.getRecordSerie(x.exo_id);
+    const rt = Store.getRecordSeance(x.exo_id);
     const nouveau = (rs && rs.date === archive.date) || (rt && rt.date === archive.date) ? " 🏆 nouveau record aujourd'hui" : "";
-    L.push(`- ${exo.nom} : série ${rs ? formatSerie(exo, rs.serie) + " (" + rs.date + ")" : "—"} · séance ${rt ? formatTotal(exo, rt.total) + " (" + rt.date + ")" : "—"}${nouveau}`);
+    L.push(`- ${exo.nom} : meilleure série ${rs ? formatSerie(exo, rs.serie) + " (" + rs.date + ")" : "—"} · meilleur total sur l'exo ${rt ? formatTotal(exo, rt.total) + " (" + rt.date + ")" : "—"}${nouveau}`);
   }
 
   L.push("", "## Tendances");
@@ -105,16 +105,14 @@ function buildResumeMarkdown(archive) {
 
 function buildExoMarkdown(exoId) {
   const exo = Store.getExo(exoId);
-  const ref = Store.modeleDeReference(exoId);
-  const rs = Store.getRecordSerie(exoId, ref);
-  const rt = Store.getRecordSeance(exoId, ref);
+  const rs = Store.getRecordSerie(exoId);
+  const rt = Store.getRecordSeance(exoId);
   const L = [];
   L.push(`# ${exo.nom}`, "");
   L.push("*Généré automatiquement par Journal Muscu à chaque séance. Échauffement à part, jamais compté dans le Σ ni dans les records.*", "");
   L.push(`- Cible actuelle : ${formatCible(exo) || "—"}`);
-  L.push(`- Records calculés sur : ${ref ? "les séances « " + Store.getModele(ref).nom + " »" : "toutes les séances"}`);
-  L.push(`- Record série : ${rs ? formatSerie(exo, rs.serie) + " (" + rs.date + ")" : "—"}`);
-  L.push(`- Record séance : ${rt ? formatTotal(exo, rt.total) + " (" + rt.date + ")" : "—"}`, "");
+  L.push(`- Meilleure série : ${rs ? formatSerie(exo, rs.serie) + " (" + rs.date + ")" : "—"}`);
+  L.push(`- Meilleur total sur l'exo en une séance : ${rt ? formatTotal(exo, rt.total) + " (" + rt.date + ")" : "—"}`, "");
   L.push("| Date | Statut | Échauffement | Séries de travail (détail) | Σ / total | Commentaire |", "|---|---|---|---|---|---|");
   for (const h of Store.getHistoriqueExo(exoId)) {
     const x = h.entry;

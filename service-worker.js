@@ -1,4 +1,4 @@
-const CACHE_NAME = "journal-muscu-v9";
+const CACHE_NAME = "journal-muscu-v10";
 const ASSETS = [
   "./",
   "./index.html",

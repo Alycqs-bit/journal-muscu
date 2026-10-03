@@ -99,8 +99,7 @@ const Store = {
     return [...ids];
   },
 
-  /* Records : uniquement sur les séances du modèle donné (« feuille blanche » à chaque nouvelle séance,
-     décision du 03/10 : comparer deux séances différentes n'a pas de sens). Sans modèle : toutes les séances. */
+  /* Séances d'un modèle donné (sans modèle : toutes). Sert à retrouver la dernière variante utilisée. */
   archivesDuModele(modeleId) {
     const all = this.getArchives();
     return modeleId ? all.filter((a) => a.modele === modeleId) : all;
@@ -428,6 +427,7 @@ function formatCible(exo) {
   }
   if (exo.unilateral) dose += " / côté";
   if (dose) parts.push(dose);
+  if (exo.rir_cible) parts.push(`RIR ${exo.rir_cible}`);
   const repos = range(exo.repos_sec);
   if (repos) parts.push(`repos ${formatRange(repos, formatDuree)}`);
   return parts.join(" · ");

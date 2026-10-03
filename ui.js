@@ -177,18 +177,13 @@ function renderSeance() {
     h("div", { class: "row tight" },
       Ecran.supporte() ? h("button", {
         class: "icon-btn" + (Ecran.voulu() ? " on" : ""),
-        title: "Garder l'écran allumé",
+        title: "Empêche le téléphone de se mettre en veille pendant la séance",
         onclick: () => { Ecran.setVoulu(!Ecran.voulu()); renderSeance(); },
-      }, "🔆") : null,
+      }, Ecran.voulu() ? "Écran allumé ✓" : "Écran allumé ✗") : null,
       h("button", { class: "btn-secondary", onclick: () => { vue = "fin"; renderFin(); window.scrollTo(0, 0); } }, "Terminer")));
 
   const els = [head];
-  if (m.echauffement || m.regles) {
-    els.push(h("p", { class: "echauffement" },
-      m.echauffement ? "Échauffement : " + m.echauffement : "",
-      m.echauffement && m.regles ? h("br") : null,
-      m.regles ? "Règles : " + m.regles : ""));
-  }
+  if (m.echauffement) els.push(h("p", { class: "echauffement" }, "Échauffement : " + m.echauffement));
 
   let blocCourant = null;
   live.exos.forEach((x, i) => {
@@ -246,6 +241,7 @@ function renderCorps(x, i, exo) {
   }
 
   body.append(h("p", { class: "cible" }, "Cible : " + formatCible(exo)));
+  if (exo.rampe) body.append(h("p", { class: "rampe" }, "🔥 Échauffement : " + exo.rampe));
   const partenaire = partenaireSuperset(i);
   if (partenaire != null) {
     body.append(h("p", { class: "superset" }, `↔ Superset avec « ${Store.getExo(live.exos[partenaire].exo_id).nom} » : après chaque série, l'app ouvre l'autre exercice. Pas de repos à attendre, on enchaîne.`));
@@ -294,14 +290,13 @@ function renderBandeau(exo, avant) {
     h("strong", null, formatSeries(exo, avant.entry.series)), total != null ? `  ·  ${formatTotalDe(exo, avant.entry.series)}` : ""));
   const notes = [avant.entry.commentaire, ...avant.entry.series.map((s) => s.commentaire)].filter(Boolean);
   if (notes.length) box.append(h("p", { class: "note" }, "💬 " + notes.join(" · ")));
-  const rs = Store.getRecordSerie(exo.id, live.modele);
-  const rt = Store.getRecordSeance(exo.id, live.modele);
-  if (!rs && !rt) box.append(h("p", { class: "muted small" }, "Records : aucun encore dans cette séance (feuille blanche)."));
+  const rs = Store.getRecordSerie(exo.id);
+  const rt = Store.getRecordSeance(exo.id);
   if (rs || rt) {
     box.append(h("p", { class: "muted small" }, "Records : ",
-      rs ? `série ${formatSerie(exo, rs.serie)} (${dateFr(rs.date)})` : "",
+      rs ? `meilleure série ${formatSerie(exo, rs.serie)} (${dateFr(rs.date)})` : "",
       rs && rt ? " · " : "",
-      rt ? `séance ${formatTotal(exo, rt.total)} (${dateFr(rt.date)})` : ""));
+      rt ? `meilleur total sur l'exo ${formatTotal(exo, rt.total)} (${dateFr(rt.date)})` : ""));
   }
   return box;
 }
@@ -693,9 +688,8 @@ function renderHistorique() {
 function renderHistoriqueExo(id) {
   vue = "historique";
   const exo = Store.getExo(id);
-  const ref = Store.modeleDeReference(id);
-  const rs = Store.getRecordSerie(id, ref);
-  const rt = Store.getRecordSeance(id, ref);
+  const rs = Store.getRecordSerie(id);
+  const rt = Store.getRecordSeance(id);
   const entrees = Store.getHistoriqueExo(id).map(({ date, entry }) => {
     const total = totalSeance(exo, entry.series);
     let n = 0;
@@ -710,7 +704,6 @@ function renderHistoriqueExo(id) {
   monter(
     h("header", { class: "seance-head" }, h("h1", null, exo.nom), h("button", { class: "btn-ghost", onclick: () => renderHistorique() }, "← Liste")),
     h("p", { class: "cible" }, "Cible : " + (formatCible(exo) || "—")),
-    h("p", { class: "muted small" }, ref ? `Records calculés sur les séances « ${Store.getModele(ref).nom} » uniquement.` : "Records calculés sur toutes les séances."),
-    h("p", { class: "muted" }, `Record série : ${rs ? formatSerie(exo, rs.serie) + " (" + dateFr(rs.date) + ")" : "—"} · Record séance : ${rt ? formatTotal(exo, rt.total) + " (" + dateFr(rt.date) + ")" : "—"}`),
+    h("p", { class: "muted" }, `Meilleure série : ${rs ? formatSerie(exo, rs.serie) + " (" + dateFr(rs.date) + ")" : "—"} · Meilleur total sur l'exo en une séance : ${rt ? formatTotal(exo, rt.total) + " (" + dateFr(rt.date) + ")" : "—"}`),
     entrees.length ? entrees : h("p", { class: "muted" }, "Aucune séance enregistrée."));
 }
