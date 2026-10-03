@@ -261,6 +261,23 @@ const Store = {
     return archive;
   },
 
+  /* Supprime une séance enregistrée par l'app (jamais l'historique importé). Elle part dans la file
+     « à retirer de Drive » jusqu'à ce que Drive soit mis à jour. */
+  supprimerArchive(id) {
+    const archives = this.getArchivesApp();
+    const archive = archives.find((a) => a.id === id);
+    if (!archive) return null;
+    lsSet(LS_KEYS.archives, archives.filter((a) => a.id !== id));
+    this.retirerOutbox(id);
+    const aRetirer = lsGet("muscu:a_retirer", []);
+    aRetirer.push({ id: archive.id, exos: archive.exos.map((x) => x.exo_id) });
+    lsSet("muscu:a_retirer", aRetirer);
+    return archive;
+  },
+  estArchiveApp(id) {
+    return this.getArchivesApp().some((a) => a.id === id);
+  },
+
   /* ---------- File d'attente Drive ---------- */
   getOutbox() {
     return lsGet(LS_KEYS.outbox, []);

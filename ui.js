@@ -124,15 +124,44 @@ function renderAccueil() {
 
   const der = Store.getDerniereArchive();
   if (der) {
+    const statusSuppr = h("p", { class: "muted small" });
     els.push(h("section", { class: "card" },
       h("p", { class: "label" }, "Dernière séance"),
       h("p", null, `${dateFr(der.date)} — ${Store.getModele(der.modele).nom}${der.duree_min ? ` · ${der.duree_min} min` : ""}`),
-      resumeCourt(der)));
+      resumeCourt(der),
+      Store.estArchiveApp(der.id) ? h("button", {
+        class: "btn-ghost small-btn",
+        onclick: (ev) => supprimerDerniere(der, ev.target, statusSuppr),
+      }, "🗑 Supprimer cette séance") : null,
+      statusSuppr));
+  }
+
+  const aRetirer = lsGet("muscu:a_retirer", []);
+  if (aRetirer.length) {
+    const status = h("p", { class: "muted" });
+    els.push(h("section", { class: "card warn" },
+      h("p", null, `${aRetirer.length} séance(s) supprimée(s) sur le téléphone, pas encore retirée(s) de Drive.`),
+      h("button", {
+        class: "btn-secondary btn-block",
+        onclick: async (ev) => {
+          ev.target.disabled = true;
+          try {
+            await DriveAuth.ensureToken();
+            await retirerDeDrive((msg) => { status.textContent = msg; });
+            status.textContent = "✅ Drive mis à jour.";
+            setTimeout(renderAccueil, 1200);
+          } catch (err) {
+            status.textContent = "Échec : " + err.message;
+            ev.target.disabled = false;
+          }
+        },
+      }, "Mettre Drive à jour"),
+      status));
   }
 
   const box = Store.getOutbox();
   const jamaisEnvoye = !lsGet("muscu:drive_init", false);
-  const seancesJamaisEnvoyees = !lsGet("muscu:drive_seances_init", false);
+  const seancesJamaisEnvoyees = !lsGet("muscu:drive_seances_init_v2", false);
   if (box.length || jamaisEnvoye || seancesJamaisEnvoyees) {
     const status = h("p", { class: "muted" });
     els.push(h("section", { class: "card warn" },
@@ -161,6 +190,29 @@ function renderAccueil() {
 
   els.push(h("button", { class: "btn-secondary btn-block", onclick: () => allerA(renderHistorique) }, "📈 Historique par exercice"));
   monter(...els);
+}
+
+async function supprimerDerniere(archive, btn, status) {
+  if (!confirm(`Supprimer définitivement la séance du ${dateFr(archive.date)} ? Elle sera retirée du téléphone et de Drive (le fichier de séance part dans la corbeille Drive).`)) return;
+  btn.disabled = true;
+  /* La fenêtre Google doit s'ouvrir tout de suite après le clic. */
+  let erreurGoogle = null;
+  const google = DriveAuth.ensureToken().catch((err) => { erreurGoogle = err; });
+  Store.supprimerArchive(archive.id);
+  status.textContent = "Supprimée du téléphone. Mise à jour de Drive…";
+  await google;
+  if (erreurGoogle) {
+    status.textContent = `Supprimée du téléphone. Drive pas encore mis à jour (${erreurGoogle.message}).`;
+    setTimeout(renderAccueil, 2500);
+    return;
+  }
+  try {
+    await retirerDeDrive((msg) => { status.textContent = msg; });
+    status.textContent = "✅ Supprimée du téléphone et de Drive.";
+  } catch (err) {
+    status.textContent = `Supprimée du téléphone, mais Drive n'a pas pu être mis à jour (${err.message}).`;
+  }
+  setTimeout(renderAccueil, 2500);
 }
 
 /* ---------- Séance ---------- */

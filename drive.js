@@ -117,5 +117,19 @@ const DriveAuth = (() => {
     });
   }
 
-  return { init, isReady, isConnected, ensureToken, deconnecter, writeFile };
+  /* Met à la corbeille Drive (récupérable 30 jours) un fichier du dossier de l'app. */
+  async function trashFile(name) {
+    const parent = await getDossier();
+    const query = encodeURIComponent(`name = '${q(name)}' and '${parent}' in parents and trashed = false`);
+    const found = await api(`https://www.googleapis.com/drive/v3/files?q=${query}&fields=files(id)`);
+    for (const f of found.files || []) {
+      await api(`https://www.googleapis.com/drive/v3/files/${f.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ trashed: true }),
+      });
+    }
+  }
+
+  return { init, isReady, isConnected, ensureToken, deconnecter, writeFile, trashFile };
 })();

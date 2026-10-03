@@ -245,3 +245,4 @@ details summary { color: var(--muted); cursor: pointer; }
 .superset { font-size: 0.82rem; color: #93c5fd; background: #13264a; padding: 0.45rem 0.6rem; border-radius: 8px; }
 .rampe { font-size: 0.85rem; color: #fcd34d; }
 .icon-btn { font-size: 0.8rem; }
+.small-btn { font-size: 0.85rem; padding: 0.45rem 0.7rem; align-self: flex-start; }

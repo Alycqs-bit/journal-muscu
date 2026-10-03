@@ -34,12 +34,13 @@ function buildResumeMarkdown(archive) {
   const modele = Store.getModele(archive.modele);
   const L = [];
   L.push(`# Séance ${modele.nom} — ${archive.date}`, "");
-  L.push(`- Modèle : ${archive.modele} (v${archive.version_programme ?? "?"})`);
+  L.push(`- Modèle : ${archive.modele}${archive.version_programme != null ? " (v" + archive.version_programme + ")" : ""}`);
   L.push(`- Durée : ${archive.duree_min != null ? archive.duree_min + " min" : "non mesurée"}`);
   L.push(`- Tags : ${archive.tags && archive.tags.length ? archive.tags.join(", ") : "aucun"}`);
   L.push(`- Commentaire de séance : ${archive.commentaire_seance || "—"}`, "");
   L.push("*Généré par Journal Muscu. Échauffement noté à part : jamais compté dans le Σ (charge totale) ni dans les records.*", "");
 
+  if (!modele.actif) L.push("*Séance d'un ancien programme : la colonne « Cible » n'est pas renseignée (la cible de l'époque n'est pas archivée).*", "");
   L.push("## Vue d'ensemble", "", "| Exercice | Cible | Dernière fois | Réalisé | Σ / total | Statut | Commentaire |", "|---|---|---|---|---|---|---|");
   const ecarts = [];
   const questions = [];
@@ -48,7 +49,8 @@ function buildResumeMarkdown(archive) {
     const avant = Store.getPerfPassee(x.exo_id, archive);
     const avantTxt = avant ? `${formatSeries(exo, avant.entry.series)} (${avant.date})` : "absent";
     const total = totalSeance(exo, x.series);
-    L.push(`| ${cell(exo.nom)} | ${cell(formatCible(exo))} | ${cell(avantTxt)} | ${cell(x.statut === "saute" ? "pas fait" : formatSeries(exo, x.series))} | ${cell(formatTotalDe(exo, x.series))} | ${x.statut} | ${cell(commentairesExo(x))} |`);
+    const cible = modele.actif ? formatCible(exo) : "—";
+    L.push(`| ${cell(exo.nom)} | ${cell(cible)} | ${cell(avantTxt)} | ${cell(x.statut === "saute" ? "pas fait" : formatSeries(exo, x.series))} | ${cell(formatTotalDe(exo, x.series))} | ${x.statut} | ${cell(commentairesExo(x))} |`);
 
     if (x.statut === "saute") ecarts.push(`- ${exo.nom} : pas fait (${x.raison || x.commentaire || "raison non précisée"})`);
     if (x.statut === "partiel") ecarts.push(`- ${exo.nom} : partiel (${seriesTravail(x.series).length} séries de travail, cible ${formatCible(exo)})`);
@@ -123,13 +125,36 @@ function buildExoMarkdown(exoId) {
   return L.join("\n");
 }
 
+/* Répercute dans Drive les séances supprimées : fichier de séance à la corbeille, fichiers d'exercices,
+   « dernière séance » et sauvegarde complète réécrits sans elles. */
+async function retirerDeDrive(onProgress) {
+  const aRetirer = lsGet("muscu:a_retirer", []);
+  if (!aRetirer.length) return 0;
+  const exos = new Set();
+  for (const r of aRetirer) {
+    if (onProgress) onProgress("Suppression du fichier de séance…");
+    await DriveAuth.trashFile(`seance-${r.id}.md`);
+    r.exos.forEach((e) => exos.add(e));
+  }
+  let i = 0;
+  for (const exoId of exos) {
+    if (onProgress) onProgress(`Mise à jour des fichiers par exercice… ${++i}/${exos.size}`);
+    await DriveAuth.writeFile(`exo-${exoId}.md`, buildExoMarkdown(exoId));
+  }
+  const derniere = Store.getDerniereArchive();
+  if (derniere) await DriveAuth.writeFile("journal-muscu-derniere-seance.md", buildResumeMarkdown(derniere));
+  await DriveAuth.writeFile("journal-muscu-archives.json", JSON.stringify(Store.getArchives(), null, 1), "application/json");
+  lsSet("muscu:a_retirer", []);
+  return aRetirer.length;
+}
+
 /* Envoie toutes les séances en attente. En cas d'échec, la file reste intacte : un nouvel essai
    réécrit simplement les mêmes fichiers. Au tout premier envoi, on génère aussi les fichiers de
    tous les exercices de l'historique importé. */
 async function envoyerOutbox(onProgress) {
   const premierEnvoi = !lsGet("muscu:drive_init", false);
   /* Une fois : un fichier par séance pour tout l'historique (importé compris), pas seulement les nouvelles. */
-  const historiqueSeances = !lsGet("muscu:drive_seances_init", false);
+  const historiqueSeances = !lsGet("muscu:drive_seances_init_v2", false);
   const ids = historiqueSeances
     ? [...new Set([...Store.getArchives().map((a) => a.id), ...Store.getOutbox()])]
     : Store.getOutbox();
@@ -156,6 +181,6 @@ async function envoyerOutbox(onProgress) {
   await DriveAuth.writeFile("journal-muscu-archives.json", JSON.stringify(Store.getArchives(), null, 1), "application/json");
   envoyes.forEach((id) => Store.retirerOutbox(id));
   lsSet("muscu:drive_init", true);
-  lsSet("muscu:drive_seances_init", true);
+  lsSet("muscu:drive_seances_init_v2", true);
   return envoyes.length;
 }
