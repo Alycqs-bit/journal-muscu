@@ -42,7 +42,7 @@ const Store = {
   /* ---------- Programme ---------- */
   getExo(id) {
     const exo = LIBRARY[id];
-    if (!exo) return { id, nom: id, type_mesure: "reps_charge", inconnu: true };
+    if (!exo) return { id, nom: id, type_mesure: "reps_charge", unite: "kg", pas_charge: [1, 2.5], inconnu: true };
     return Object.assign({ id, unite: "kg", pas_charge: [1, 2.5] }, exo);
   },
   getModele(id) {
@@ -99,11 +99,29 @@ const Store = {
     return [...ids];
   },
 
+  /* Records : uniquement sur les séances du modèle donné (« feuille blanche » à chaque nouvelle séance,
+     décision du 03/10 : comparer deux séances différentes n'a pas de sens). Sans modèle : toutes les séances. */
+  archivesDuModele(modeleId) {
+    const all = this.getArchives();
+    return modeleId ? all.filter((a) => a.modele === modeleId) : all;
+  },
+
+  /* Le modèle actif qui contient cet exo (pour savoir sur quelles séances calculer ses records). */
+  modeleDeReference(exoId) {
+    for (const m of this.getModelesActifs()) {
+      for (const b of m.blocs) for (const slot of b.slots) {
+        const ids = typeof slot === "string" ? [slot] : slot.variantes || [slot.exo];
+        if (ids.includes(exoId)) return m.id;
+      }
+    }
+    return null;
+  },
+
   /* Record série : meilleure série de travail isolée. */
-  getRecordSerie(exoId) {
+  getRecordSerie(exoId, modeleId) {
     const exo = this.getExo(exoId);
     let best = null;
-    for (const arch of this.getArchives().reverse()) {
+    for (const arch of this.archivesDuModele(modeleId).reverse()) {
       const entry = arch.exos.find((x) => x.exo_id === exoId);
       if (!entry) continue;
       for (const s of seriesTravail(entry.series)) {
@@ -114,10 +132,10 @@ const Store = {
   },
 
   /* Record total séance : meilleur total sur une séance (tonnage, temps cumulé ou reps cumulées). */
-  getRecordSeance(exoId) {
+  getRecordSeance(exoId, modeleId) {
     const exo = this.getExo(exoId);
     let best = null;
-    for (const arch of this.getArchives().reverse()) {
+    for (const arch of this.archivesDuModele(modeleId).reverse()) {
       const entry = arch.exos.find((x) => x.exo_id === exoId);
       if (!entry) continue;
       const t = totalSeance(exo, entry.series);
@@ -126,9 +144,10 @@ const Store = {
     return best;
   },
 
-  /* Dernière variante utilisée parmi une liste (pour présélectionner la bonne à la maison / en salle). */
-  derniereVariante(variantes) {
-    for (const arch of this.getArchives()) {
+  /* Dernière variante utilisée dans ce modèle (pour présélectionner la bonne à la maison / en salle).
+     Jamais utilisée dans ce modèle : la première de la liste. */
+  derniereVariante(variantes, modeleId) {
+    for (const arch of this.archivesDuModele(modeleId)) {
       const hit = arch.exos.find((x) => variantes.includes(x.exo_id) && seriesTravail(x.series).length);
       if (hit) return hit.exo_id;
     }
@@ -148,11 +167,13 @@ const Store = {
     const exos = [];
     for (const bloc of modele.blocs) {
       for (const slot of bloc.slots) {
-        const variantes = typeof slot === "string" ? null : slot.variantes;
+        const variantes = typeof slot === "string" ? null : slot.variantes || null;
+        const exoFixe = typeof slot === "string" ? slot : slot.exo;
         exos.push({
           bloc: bloc.titre,
           variantes,
-          exo_id: variantes ? this.derniereVariante(variantes) : slot,
+          superset: typeof slot === "string" ? null : slot.superset || null,
+          exo_id: variantes ? this.derniereVariante(variantes, modeleId) : exoFixe,
           statut: "a_faire",
           series: [],
           commentaire: "",
@@ -176,7 +197,30 @@ const Store = {
     return live;
   },
   getSeanceLive() {
-    return lsGet(LS_KEYS.live, null);
+    const live = lsGet(LS_KEYS.live, null);
+    if (!live || typeof live !== "object") return null;
+    if (Array.isArray(live.exos)) return live;
+    /* Format de la version d'août : exos rangés dans live.blocs. On convertit pour ne rien perdre. */
+    if (Array.isArray(live.blocs)) {
+      live.exos = live.blocs.flatMap((b) => (b.exos || []).map((e) => ({
+        bloc: b.titre || "",
+        variantes: null,
+        superset: null,
+        exo_id: e.exo_id === "gastro_smith" ? "mollet_tendu_smith" : e.exo_id,
+        statut: e.statut === "saute" ? "saute" : "a_faire",
+        series: Array.isArray(e.series) ? e.series : [],
+        commentaire: e.commentaire || "",
+        raison: null,
+      })));
+      delete live.blocs;
+      live.tags = live.tags || [];
+      live.debut_ts = live.debut_ts || Date.now();
+      live.repos = null;
+      live.reposEnAttente = null;
+      this.saveSeanceLive(live);
+      return live;
+    }
+    return null;
   },
   saveSeanceLive(live) {
     lsSet(LS_KEYS.live, live);

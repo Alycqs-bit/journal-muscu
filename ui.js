@@ -183,7 +183,12 @@ function renderSeance() {
       h("button", { class: "btn-secondary", onclick: () => { vue = "fin"; renderFin(); window.scrollTo(0, 0); } }, "Terminer")));
 
   const els = [head];
-  if (m.echauffement) els.push(h("p", { class: "echauffement" }, "Échauffement : " + m.echauffement));
+  if (m.echauffement || m.regles) {
+    els.push(h("p", { class: "echauffement" },
+      m.echauffement ? "Échauffement : " + m.echauffement : "",
+      m.echauffement && m.regles ? h("br") : null,
+      m.regles ? "Règles : " + m.regles : ""));
+  }
 
   let blocCourant = null;
   live.exos.forEach((x, i) => {
@@ -241,6 +246,10 @@ function renderCorps(x, i, exo) {
   }
 
   body.append(h("p", { class: "cible" }, "Cible : " + formatCible(exo)));
+  const partenaire = partenaireSuperset(i);
+  if (partenaire != null) {
+    body.append(h("p", { class: "superset" }, `↔ Superset avec « ${Store.getExo(live.exos[partenaire].exo_id).nom} » : après chaque série, l'app ouvre l'autre exercice. Pas de repos à attendre, on enchaîne.`));
+  }
   if (exo.consignes) body.append(h("p", { class: "consignes" }, exo.consignes));
 
   const avant = Store.getPerfPassee(exo.id);
@@ -285,8 +294,9 @@ function renderBandeau(exo, avant) {
     h("strong", null, formatSeries(exo, avant.entry.series)), total != null ? `  ·  ${formatTotalDe(exo, avant.entry.series)}` : ""));
   const notes = [avant.entry.commentaire, ...avant.entry.series.map((s) => s.commentaire)].filter(Boolean);
   if (notes.length) box.append(h("p", { class: "note" }, "💬 " + notes.join(" · ")));
-  const rs = Store.getRecordSerie(exo.id);
-  const rt = Store.getRecordSeance(exo.id);
+  const rs = Store.getRecordSerie(exo.id, live.modele);
+  const rt = Store.getRecordSeance(exo.id, live.modele);
+  if (!rs && !rt) box.append(h("p", { class: "muted small" }, "Records : aucun encore dans cette séance (feuille blanche)."));
   if (rs || rt) {
     box.append(h("p", { class: "muted small" }, "Records : ",
       rs ? `série ${formatSerie(exo, rs.serie)} (${dateFr(rs.date)})` : "",
@@ -329,7 +339,7 @@ function defaultDraft(exo, x, avant) {
     reps: ref.reps ?? (reps ? reps[0] : null),
     charge: ref.charge ?? null,
     duree_sec: ref.duree_sec ?? (temps ? temps[0] : null),
-    cote: exo.unilateral ? (last && last.cote ? autreCote(last.cote) : "G") : null,
+    cote: exo.unilateral ? (last && last.cote ? autreCote(last.cote) : exo.premier_cote || "G") : null,
     rir: null, technique: null, echauffement: false, commentaire: "",
   };
 }
@@ -469,9 +479,23 @@ function validerSerie(x, i, exo) {
     rir: null, technique: null, echauffement: false, commentaire: "",
   };
   f(i).note = false;
+  const partenaire = serie.echauffement ? null : partenaireSuperset(i);
+  if (partenaire != null) { ouvert = partenaire; edition = null; }
   save();
   vibrer(30);
   renderSeance();
+  if (partenaire != null) {
+    const carte = document.querySelector(".exo-card.open");
+    if (carte) carte.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+}
+
+/* Index de l'autre exercice du même superset, ou null. */
+function partenaireSuperset(i) {
+  const x = live.exos[i];
+  if (!x || !x.superset) return null;
+  const j = live.exos.findIndex((y, k) => k !== i && y.superset === x.superset);
+  return j >= 0 ? j : null;
 }
 
 function enregistrerCorrection(x, i, exo) {
@@ -669,8 +693,9 @@ function renderHistorique() {
 function renderHistoriqueExo(id) {
   vue = "historique";
   const exo = Store.getExo(id);
-  const rs = Store.getRecordSerie(id);
-  const rt = Store.getRecordSeance(id);
+  const ref = Store.modeleDeReference(id);
+  const rs = Store.getRecordSerie(id, ref);
+  const rt = Store.getRecordSeance(id, ref);
   const entrees = Store.getHistoriqueExo(id).map(({ date, entry }) => {
     const total = totalSeance(exo, entry.series);
     let n = 0;
@@ -685,6 +710,7 @@ function renderHistoriqueExo(id) {
   monter(
     h("header", { class: "seance-head" }, h("h1", null, exo.nom), h("button", { class: "btn-ghost", onclick: () => renderHistorique() }, "← Liste")),
     h("p", { class: "cible" }, "Cible : " + (formatCible(exo) || "—")),
+    h("p", { class: "muted small" }, ref ? `Records calculés sur les séances « ${Store.getModele(ref).nom} » uniquement.` : "Records calculés sur toutes les séances."),
     h("p", { class: "muted" }, `Record série : ${rs ? formatSerie(exo, rs.serie) + " (" + dateFr(rs.date) + ")" : "—"} · Record séance : ${rt ? formatTotal(exo, rt.total) + " (" + dateFr(rt.date) + ")" : "—"}`),
     entrees.length ? entrees : h("p", { class: "muted" }, "Aucune séance enregistrée."));
 }
