@@ -12,6 +12,7 @@
    - saisie : champs proposés à la saisie parmi reps, charge, duree, rir, technique, echauffement
      (absent = tous ceux qui ont un sens pour le type de mesure). La note de série est toujours proposée.
    - reps_fixes : on valide la série sans saisir les reps (= haut de la cible)
+   - charge_lest : la charge est un lest ajouté au poids du corps ; 0 s'affiche « poids du corps »
    - ancien : true → exercice de l'ancien programme, gardé uniquement pour l'historique
 
    Cibles reprises de plan-bloc-1-reprise-fondation-force.md §4 (projet Trail, état au 03/10/2026). */
@@ -49,7 +50,7 @@ const LIBRARY = {
   },
   mollet_tendu_uni_maison: {
     saisie: ["reps", "charge", "rir", "technique", "echauffement"],
-    nom: "Mollet genou tendu — 1 jambe, escalier", groupe: "mollets", lieu: "maison", unilateral: true, premier_cote: "D",
+    nom: "Mollet genou tendu — 1 jambe, escalier", groupe: "mollets", lieu: "maison", unilateral: true, premier_cote: "D", charge_lest: true,
     type_mesure: "reps_charge", reglages: "ceinture lestée + disques, une main au mur · tempo 3-1-3-2 (3 s montée, 1 s en haut, 3 s descente, 2 s en bas)",
     rampe: "1 série plus légère par jambe avant les 3 séries de travail, pour monter en charge (cocher « Échauffement »)", rir_cible: "1-2",
     cible_series: [3, 3], cible_reps: [6, 8], repos_sec: null, repos_cotes_sec: null,

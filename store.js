@@ -404,6 +404,7 @@ function fmtNum(n) {
 
 function formatCharge(exo, charge) {
   if (charge == null) return "";
+  if (exo.charge_lest && charge === 0) return "poids du corps";
   return exo.unite && exo.unite !== "kg" ? `${exo.unite} ${fmtNum(charge)}` : `${fmtNum(charge)} kg`;
 }
 

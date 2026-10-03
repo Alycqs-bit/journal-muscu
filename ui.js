@@ -553,7 +553,12 @@ function renderSaisie(x, i, exo, avant) {
       input.value = fmtNum(d.charge);
       save();
     };
-    form.append(h("div", { class: "field" }, h("span", { class: "field-label" }, exo.unite === "kg" ? "Charge (kg)" : `Distance (${exo.unite})`),
+    form.append(h("div", { class: "field" },
+      h("span", { class: "field-label" }, exo.unite !== "kg" ? `Distance (${exo.unite})` : exo.charge_lest ? "Lest (kg) — 0 = poids du corps" : "Charge (kg)"),
+      exo.charge_lest ? h("button", {
+        class: "chip" + (d.charge === 0 ? " selected" : ""),
+        onclick: () => { d.charge = 0; save(); renderSeance(); },
+      }, "Poids du corps") : null,
       h("div", { class: "stepper wide" },
         h("button", { class: "small", onclick: () => step(-p2) }, `−${fmtNum(p2)}`),
         h("button", { class: "small", onclick: () => step(-p1) }, `−${fmtNum(p1)}`),
