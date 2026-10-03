@@ -143,7 +143,7 @@ function renderAccueil() {
             await DriveAuth.ensureToken();
             await retirerDeDrive((msg) => { status.textContent = msg; });
             status.textContent = "✅ Drive mis à jour.";
-            setTimeout(renderAccueil, 1200);
+            setTimeout(() => { if (vue === "accueil" || vue === "historique") renderAccueil(); }, 1200);
           } catch (err) {
             status.textContent = "Échec : " + err.message;
             ev.target.disabled = false;
@@ -172,7 +172,7 @@ function renderAccueil() {
             await DriveAuth.ensureToken();
             await envoyerOutbox((msg) => { status.textContent = msg; });
             status.textContent = "✅ Envoyé dans Drive (dossier « Journal Muscu (app) »).";
-            setTimeout(renderAccueil, 1500);
+            setTimeout(() => { if (vue === "accueil" || vue === "historique") renderAccueil(); }, 1500);
           } catch (err) {
             status.textContent = "Échec : " + err.message;
             ev.target.disabled = false;
@@ -220,7 +220,7 @@ async function supprimerSeance(archive, btn, status) {
   await google;
   if (erreurGoogle) {
     status.textContent = `Supprimée du téléphone. Drive pas encore mis à jour (${erreurGoogle.message}) : réessaie depuis l'accueil.`;
-    setTimeout(renderAccueil, 3000);
+    setTimeout(() => { if (vue === "accueil" || vue === "historique") renderAccueil(); }, 3000);
     return;
   }
   try {
@@ -229,7 +229,7 @@ async function supprimerSeance(archive, btn, status) {
   } catch (err) {
     status.textContent = `Supprimée du téléphone, mais Drive n'a pas pu être mis à jour (${err.message}).`;
   }
-  setTimeout(renderAccueil, 2500);
+  setTimeout(() => { if (vue === "accueil" || vue === "historique") renderAccueil(); }, 2500);
 }
 
 /* ---------- Séance ---------- */
