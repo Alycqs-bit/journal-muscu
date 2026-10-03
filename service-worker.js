@@ -1,4 +1,4 @@
-const CACHE_NAME = "journal-muscu-v13";
+const CACHE_NAME = "journal-muscu-v14";
 const ASSETS = [
   "./",
   "./index.html",
@@ -32,8 +32,10 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET" || !event.request.url.startsWith(self.location.origin)) return;
+  /* « no-cache » : toujours redemander au serveur s'il y a plus récent (GitHub Pages garde sinon 10 min de cache),
+     le cache local ne sert qu'en cas d'absence de réseau. */
   event.respondWith(
-    fetch(event.request)
+    fetch(event.request, { cache: "no-cache" })
       .then((response) => {
         const clone = response.clone();
         caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
