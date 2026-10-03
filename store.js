@@ -58,6 +58,7 @@ const Store = {
   },
   getArchives() {
     const byId = {};
+    for (const a of HISTORIQUE_ANCIEN) byId[a.id] = a;
     for (const a of HISTORIQUE) byId[a.id] = a;
     for (const a of this.getArchivesApp()) byId[a.id] = a;
     /* Plus récent d'abord. Même jour : l'id le plus long/grand passe devant (2e séance du jour = « …-12345 »). */

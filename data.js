@@ -100,12 +100,20 @@ const LIBRARY = {
   tractions_assistees: { ancien: true, nom: "Tractions assistées", groupe: "dos", type_mesure: "reps_charge", charge_inversee: true, reglages: "", cible_series: 2, cible_reps: [8, 12], repos_sec: 90, consignes: "charge inversée : baisser la charge = progresser" },
   developpe_militaire: { ancien: true, nom: "Développé militaire", groupe: "épaules", type_mesure: "reps_charge", reglages: "", cible_series: 2, cible_reps: [8, 12], repos_sec: 90, consignes: "" },
   triceps_poulie: { ancien: true, nom: "Extensions triceps poulie haute", groupe: "triceps", type_mesure: "reps_charge", reglages: "", cible_series: 3, cible_reps: [10, 15], repos_sec: 75, consignes: "" },
-  hammer_strength: { ancien: true, nom: "Hammer Strength", groupe: "pectoraux", type_mesure: "reps_charge", reglages: "", cible_series: 3, cible_reps: [10, 15], repos_sec: 60, consignes: "" },
-  pallof_press: { ancien: true, nom: "Pallof press debout", groupe: "tronc", type_mesure: "reps_charge", reglages: "", cible_series: 3, cible_reps: [10, 12], repos_sec: 60, consignes: "" },
+  hammer_strength: { ancien: true, nom: "Hammer Strength (épaule latérale)", groupe: "épaules", type_mesure: "reps_charge", reglages: "", cible_series: 3, cible_reps: [10, 15], repos_sec: 60, consignes: "" },
+  pallof_press: { ancien: true, nom: "Pallof press (genoux, assis ou debout)", groupe: "tronc", type_mesure: "reps_charge", reglages: "", cible_series: 3, cible_reps: [10, 12], repos_sec: 60, consignes: "" },
   dead_hang: { ancien: true, nom: "Dead hang", groupe: "poigne", type_mesure: "temps", reglages: "", cible_series: 3, repos_sec: 45, consignes: "" },
   farmers: { ancien: true, nom: "Farmer's walk", groupe: "poigne", type_mesure: "temps_charge", reglages: "", cible_series: 3, cible_temps_sec: 45, repos_sec: 45, consignes: "" },
   curl_wrist: { ancien: true, nom: "Curl wrist", groupe: "avant-bras", type_mesure: "reps_charge", reglages: "", cible_series: 2, cible_reps: [20, 20], repos_sec: 30, consignes: "" },
   curl_wrist_reverse: { ancien: true, nom: "Curl wrist reverse", groupe: "avant-bras", type_mesure: "reps_charge", reglages: "", cible_series: 2, cible_reps: [20, 20], repos_sec: 30, consignes: "" },
+  lat_pulldown: { ancien: true, nom: "Tirage vertical (lat pulldown)", groupe: "dos", type_mesure: "reps_charge", reglages: "mag grip moyen", cible_series: [3, 4], cible_reps: [8, 12], repos_sec: 90, consignes: "remplacé par les tractions assistées le 28/04" },
+  presse_horizontale: { ancien: true, nom: "Presse horizontale", groupe: "quadriceps", type_mesure: "reps_charge", reglages: "", cible_series: 4, cible_reps: [5, 8], repos_sec: 165, consignes: "début avril, avant la presse 45°" },
+  leg_curl_24mars: { ancien: true, nom: "Leg curl (machine du 24/03, à confirmer)", groupe: "ischios", type_mesure: "reps_charge", reglages: "", cible_series: 4, cible_reps: [10, 10], repos_sec: 90, consignes: "55 kg, buste penché, mains sur le dossier : sans doute une autre machine que le leg curl couché" },
+  iso_soleaire: { ancien: true, nom: "Isométrique soléaire", groupe: "mollets", type_mesure: "temps_charge", reglages: "", cible_series: 2, cible_temps_sec: 45, repos_sec: 90, consignes: "" },
+  releve_jambes: { ancien: true, nom: "Relevé de jambes (barre de traction)", groupe: "tronc", type_mesure: "reps_seules", reglages: "", cible_series: 3, cible_reps: [10, 15], repos_sec: 60, consignes: "" },
+  rotations_medecine_ball: { ancien: true, nom: "Rotations medecine ball assis", groupe: "tronc", type_mesure: "reps_charge", reglages: "", cible_series: 3, cible_reps: [10, 12], repos_sec: 60, consignes: "reps par côté" },
+  plio_rebonds: { ancien: true, nom: "Pliométrie — rebonds rapides", groupe: "mollets", type_mesure: "reps_seules", reglages: "", cible_series: 3, cible_reps: [20, 20], repos_sec: 90, consignes: "" },
+  mollet_vsquat: { ancien: true, nom: "Mollets au V-squat", groupe: "mollets", type_mesure: "reps_charge", reglages: "", cible_series: 4, cible_reps: [8, 10], repos_sec: 105, consignes: "remplacement ponctuel de la Smith (17/07)" },
   corde_a_sauter: { ancien: true, nom: "Pliométrie mollets (corde à sauter)", groupe: "mollets", type_mesure: "temps", reglages: "", cible_series: 3, cible_temps_sec: 30, repos_sec: 90, consignes: "" },
 };
 
@@ -135,6 +143,9 @@ const PROGRAMME = {
       { titre: "Poigne A", slots: ["dead_hang", "farmers", "curl_wrist", "curl_wrist_reverse"] },
     ],
   },
+  B: { id: "B", nom: "Bas du corps (printemps)", actif: false, blocs: [] },
+  H: { id: "H", nom: "Haut du corps + tronc (printemps)", actif: false, blocs: [] },
+  M: { id: "M", nom: "Mollets + poigne (juin)", actif: false, blocs: [] },
   HM: {
     id: "HM", nom: "Haut du corps + mollets (ancien)", actif: false, version: 1, date_maj: "2026-08-13",
     blocs: [

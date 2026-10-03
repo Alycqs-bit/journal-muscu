@@ -14,10 +14,10 @@ function e(reps, charge, x) { return Object.assign({ reps, charge, echauffement:
 const OK = "propre", KO = "degradee";
 
 return [
-  /* ---------- Ancien programme salle ---------- */
+  /* ---------- Ancien programme salle (importé le 16/08 ; le reste est dans historique-ancien.js) ---------- */
   {
-    id: "2026-07-17-HM", date: "2026-07-17", modele: "HM", version_programme: null, duree_min: null,
-    commentaire_seance: "", tags: [],
+    id: "2026-07-23-HM", date: "2026-07-23", modele: "HM", version_programme: null, duree_min: null,
+    commentaire_seance: "⚠️ Fichier « 23 juillet - HM » dont le titre interne dit « 17 juillet » (copier-coller) : séance distincte du 17/07, sa perf. passée reprenant le 20/07. Blocs haut du corps identiques au 17/07 sauf triceps (copie possible non mise à jour).", tags: [],
     exos: [
       { exo_id: "gastro_smith", statut: "fait", series: [w(9, 55), w(9, 55), w(9, 55), w(9, 55)], commentaire: "essayer d'éliminer le coup de cul" },
       { exo_id: "soleaire", statut: "fait", series: [w(16, 25), w(17, 25), w(17, 25), w(17, 25)], commentaire: "" },
@@ -28,7 +28,7 @@ return [
       { exo_id: "hammer_strength", statut: "fait", series: [w(15, 10), w(15, 10)], commentaire: "" },
       { exo_id: "pallof_press", statut: "fait", series: [{ charge: 15 }, { charge: 15 }], commentaire: "reps par côté non notées précisément ce jour-là" },
       { exo_id: "dead_hang", statut: "fait", series: [{ duree_sec: 90 }, { duree_sec: 60 }, { duree_sec: 60 }], commentaire: "" },
-      { exo_id: "farmers", statut: "saute", series: [], commentaire: "pas le temps" },
+      { exo_id: "farmers", statut: "saute", series: [], commentaire: "réalisé non noté" },
       { exo_id: "curl_wrist", statut: "fait", series: [w(20, 5), w(20, 5)], commentaire: "" },
       { exo_id: "curl_wrist_reverse", statut: "fait", series: [w(20, 3), w(20, 3)], commentaire: "" },
     ],
