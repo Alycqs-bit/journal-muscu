@@ -412,13 +412,18 @@ function renderCorps(x, i, exo) {
   if (exo.rampe) body.append(h("p", { class: "rampe" }, "🔥 Échauffement : " + exo.rampe));
   const partenaire = partenaireSuperset(i);
   if (partenaire != null) {
-    body.append(h("p", { class: "superset" }, `↔ Superset avec « ${Store.getExo(live.exos[partenaire].exo_id).nom} » : après chaque série, l'app ouvre l'autre exercice. Pas de repos à attendre, on enchaîne.`));
+    const autre = Store.getExo(live.exos[partenaire].exo_id).nom;
+    body.append(h("p", { class: "superset" }, estMeneur(i)
+      ? `↔ Superset avec « ${autre} » : après chaque série, une ligne apparaît ici pour le noter en un appui. Pas de repos à attendre, on enchaîne.`
+      : `↔ Superset avec « ${autre} » : se note d'un appui depuis sa fiche. Ici seulement pour changer les valeurs.`));
   }
   if (exo.consignes) body.append(h("p", { class: "consignes" }, exo.consignes));
 
   const avant = Store.getPerfPassee(exo.id);
   body.append(renderBandeau(exo, avant));
   if (x.series.length) body.append(renderListeSeries(x, i, exo));
+  const attente = estMeneur(i) ? suiveurEnAttente(i) : null;
+  if (attente) body.append(renderSuiveurEnAttente(attente));
   if (x.statut !== "saute") body.append(renderSaisie(x, i, exo, avant));
 
   const actions = h("div", { class: "exo-actions" },
@@ -666,7 +671,9 @@ function validerSerie(x, i, exo) {
     rir: null, technique: null, echauffement: false, commentaire: "",
   };
   f(i).note = false;
-  const partenaire = serie.echauffement ? null : partenaireSuperset(i);
+  /* Superset : le meneur (mollet) reste ouvert, la ligne « à faire » du suiveur apparaît dans sa fiche ;
+     une série notée depuis la fiche du suiveur ramène au meneur. */
+  const partenaire = serie.echauffement || estMeneur(i) ? null : partenaireSuperset(i);
   if (partenaire != null) { ouvert = partenaire; edition = null; }
   save();
   vibrer(30);
@@ -675,6 +682,73 @@ function validerSerie(x, i, exo) {
     const carte = document.querySelector(".exo-card.open");
     if (carte) carte.scrollIntoView({ behavior: "smooth", block: "start" });
   }
+}
+
+/* Le meneur d'un superset est son premier exercice (le mollet), le suiveur le second (le releveur). */
+function estMeneur(i) {
+  const x = live.exos[i];
+  return !!(x && x.superset) && live.exos.findIndex((y) => y.superset === x.superset) === i;
+}
+
+/* Côté du suiveur en retard sur le meneur (ex. mollet droit fait, releveur droit pas encore), avec les valeurs proposées. */
+function suiveurEnAttente(i) {
+  const j = partenaireSuperset(i);
+  if (j == null) return null;
+  const meneur = seriesTravail(live.exos[i].series);
+  const suiveur = live.exos[j];
+  if (suiveur.statut === "saute") return null;
+  const faits = seriesTravail(suiveur.series);
+  const vus = { G: 0, D: 0 };
+  for (const s of meneur) {
+    const c = s.cote || "D";
+    vus[c]++;
+    if (faits.filter((t) => (t.cote || "D") === c).length < vus[c]) {
+      const exoS = Store.getExo(suiveur.exo_id);
+      const avant = Store.getPerfPassee(exoS.id);
+      const ref = [...faits].reverse().find((t) => t.cote === c) || faits[faits.length - 1]
+        || (avant ? seriesTravail(avant.entry.series).find((t) => t.cote === c) : null)
+        || { reps: range(exoS.cible_reps) ? range(exoS.cible_reps)[0] : null, charge: null };
+      return { j, cote: c, exo: exoS, reps: ref.reps, charge: ref.charge };
+    }
+  }
+  return null;
+}
+
+function renderSuiveurEnAttente(a) {
+  const cote = a.cote === "G" ? "gauche" : "droite";
+  const pret = a.reps != null && (a.charge != null || !champ(a.exo, "charge"));
+  const valeurs = pret ? formatSerie(a.exo, { reps: a.reps, charge: a.charge }) : "valeurs à saisir";
+  return h("div", { class: "suiveur" },
+    h("span", null, h("strong", null, `${a.exo.nom.split(" — ")[0]} ${cote}`), ` : ${valeurs}`),
+    h("div", { class: "row tight" },
+      pret ? h("button", { class: "btn-primary", onclick: () => suiveurFait(a) }, "✓ Fait") : null,
+      h("button", { class: "btn-ghost", onclick: () => modifierSuiveur(a) }, pret ? "Modifier" : "Saisir")));
+}
+
+/* Enregistre la série du suiveur sans toucher au chrono de repos du meneur (le releveur se fait pendant ce repos). */
+function suiveurFait(a) {
+  debloquerSon();
+  const y = live.exos[a.j];
+  const serie = { cote: a.cote, reps: a.reps };
+  if (champ(a.exo, "charge")) serie.charge = a.charge;
+  y.series.push(serie);
+  if (y.statut === "saute") y.statut = "a_faire";
+  y._draft = Object.assign({}, y._draft || {}, { cote: autreCote(a.cote), reps: a.reps, charge: a.charge, commentaire: "" });
+  toast(`✓ ${a.exo.nom.split(" — ")[0]} ${a.cote === "G" ? "gauche" : "droite"} enregistré : ${formatSerie(a.exo, serie)}`);
+  save();
+  vibrer(30);
+  renderSeance();
+}
+
+function modifierSuiveur(a) {
+  const y = live.exos[a.j];
+  y._draft = Object.assign({}, y._draft || {}, { cote: a.cote, reps: a.reps, charge: a.charge });
+  ouvert = a.j;
+  edition = null;
+  save();
+  renderSeance();
+  const carte = document.querySelector(".exo-card.open");
+  if (carte) carte.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 /* Index de l'autre exercice du même superset, ou null. */
