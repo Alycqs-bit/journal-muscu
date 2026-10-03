@@ -9,6 +9,9 @@
    - repos_cotes_sec : repos entre les deux côtés d'un exo unilatéral (null = on enchaîne)
    - lieu : "salle" / "maison" (info d'affichage, pour choisir la bonne variante)
    - premier_cote : côté par lequel commencer un exo unilatéral ("G" par défaut)
+   - saisie : champs proposés à la saisie parmi reps, charge, duree, rir, technique, echauffement
+     (absent = tous ceux qui ont un sens pour le type de mesure). La note de série est toujours proposée.
+   - reps_fixes : on valide la série sans saisir les reps (= haut de la cible)
    - ancien : true → exercice de l'ancien programme, gardé uniquement pour l'historique
 
    Cibles reprises de plan-bloc-1-reprise-fondation-force.md §4 (projet Trail, état au 03/10/2026). */
@@ -17,58 +20,66 @@ const LIBRARY = {
   /* ---------- Programme actuel : Fondation force (version du 03/10/2026) ----------
      Source : plan-bloc-1-reprise-fondation-force.md §4 « SÉANCE TYPE EN VIGUEUR » (projet Trail). */
   corde: {
+    saisie: ["duree"],
     nom: "Corde à sauter", groupe: "pliométrie",
     type_mesure: "temps", reglages: "surface souple",
     cible_series: [2, 2], cible_temps_sec: [30, 30], repos_sec: [60, 90],
     consignes: "Contacts au sol les plus brefs possible ; la hauteur ne compte pas.",
   },
   pogos_2pieds: {
+    saisie: [], reps_fixes: true,
     nom: "Pogos — deux pieds (niveau 1)", groupe: "pliométrie",
     type_mesure: "reps_seules", reglages: "surface souple",
     cible_series: [3, 3], cible_reps: [10, 10], repos_sec: [60, 90],
     consignes: "Petits rebonds sur place, genoux presque tendus : ça rebondit par les chevilles, contacts brefs. Niveau 2 après 2 séances sans symptôme et un test du lundi à 20 ou plus. On recule d'un niveau si les mollets sont pris le lendemain matin, si une douleur dépasse 2/10 ou si le test du lundi baisse. Jamais dans les 48 h avant une séance de descente.",
   },
   pogos_1jambe: {
+    saisie: [], reps_fixes: true,
     nom: "Pogos — une jambe (niveau 2)", groupe: "pliométrie", unilateral: true,
     type_mesure: "reps_seules", reglages: "surface souple",
     cible_series: [3, 3], cible_reps: [10, 10], repos_sec: [60, 90], repos_cotes_sec: null,
     consignes: "Même rebond sur place, sur une seule jambe. Niveau 3 quand le test est confirmé à 20-25 ou plus et que 20 sauts unipodaux passent sans symptôme. On recule d'un niveau si les mollets sont pris le lendemain matin, si une douleur dépasse 2/10 ou si le test du lundi baisse. Jamais dans les 48 h avant une séance de descente.",
   },
   sauts_unipodaux: {
+    saisie: [], reps_fixes: true,
     nom: "Sauts unipodaux + cloche-pied (niveau 3)", groupe: "pliométrie", unilateral: true,
     type_mesure: "reps_seules", reglages: "surface souple",
     cible_series: [3, 3], cible_reps: [5, 10], repos_sec: [60, 120], repos_cotes_sec: null,
     consignes: "Flexion puis saut vertical sur une jambe, puis sauts à cloche-pied en avançant. On recule d'un niveau si les mollets sont pris le lendemain matin, si une douleur dépasse 2/10 ou si le test du lundi baisse. Jamais dans les 48 h avant une séance de descente.",
   },
   mollet_tendu_uni_maison: {
+    saisie: ["reps", "charge", "rir", "technique", "echauffement"],
     nom: "Mollet genou tendu — 1 jambe, escalier", groupe: "mollets", lieu: "maison", unilateral: true, premier_cote: "D",
     type_mesure: "reps_charge", reglages: "ceinture lestée + disques, une main au mur · tempo 3-1-3-2 (3 s montée, 1 s en haut, 3 s descente, 2 s en bas)",
-    rampe: "1 série d'approche par jambe", rir_cible: "1-2",
+    rampe: "1 série plus légère par jambe avant les 3 séries de travail, pour monter en charge (cocher « Échauffement »)", rir_cible: "1-2",
     cible_series: [3, 3], cible_reps: [6, 8], repos_sec: null, repos_cotes_sec: null,
     consignes: "Charge = lest de la ceinture, hors poids du corps. Talon sous le niveau de la marche en bas, montée maximale en haut. Progression : quand les 3 séries passent à 8 reps à RIR 1, on alourdit et on repart à 6.",
   },
   mollet_tendu_uni_smith: {
+    saisie: ["reps", "charge", "rir", "technique", "echauffement"],
     nom: "Mollet genou tendu — 1 jambe, Smith", groupe: "mollets", lieu: "salle", unilateral: true, premier_cote: "D",
     type_mesure: "reps_charge", reglages: "tempo 3-1-3-2 (3 s montée, 1 s en haut, 3 s descente, 2 s en bas)",
-    rampe: "1 série d'approche par jambe", rir_cible: "1-2",
+    rampe: "1 série plus légère par jambe avant les 3 séries de travail, pour monter en charge (cocher « Échauffement »)", rir_cible: "1-2",
     cible_series: [3, 3], cible_reps: [6, 8], repos_sec: null, repos_cotes_sec: null,
     consignes: "Talon bas en bas, montée maximale en haut. Progression : quand les 3 séries passent à 8 reps à RIR 1, on alourdit et on repart à 6.",
   },
   mollet_tendu_smith: {
+    saisie: ["reps", "charge", "rir", "technique", "echauffement"],
     nom: "Mollet genou tendu — Smith, 2 jambes", groupe: "mollets", lieu: "salle",
     type_mesure: "reps_charge", reglages: "tempo 3-1-3-2 (3 s montée, 1 s en haut, 3 s descente, 2 s en bas)",
-    rampe: "1 série proche du poids de travail", rir_cible: "1-2",
+    rampe: "1 série plus légère avant les séries de travail (cocher « Échauffement »)", rir_cible: "1-2",
     cible_series: [3, 4], cible_reps: [6, 8], repos_sec: [120, 180],
     consignes: "Repli si l'unilatéral est trop long. Progression : quand les 3 séries passent à 8 reps à RIR 1, on alourdit et on repart à 6.",
   },
   releveur: {
+    saisie: ["reps", "charge"],
     nom: "Releveur — élastique", groupe: "releveur", unilateral: true, premier_cote: "D", unite: "dist.", pas_charge: [0.5, 1],
     type_mesure: "reps_charge", reglages: "assis au sol, orteils griffés vers la plante, relevé 1 s / retour freiné 3 s",
-    rir_cible: "1-2",
     cible_series: [3, 3], cible_reps: [20, 25], repos_sec: null, repos_cotes_sec: null,
     consignes: "La « charge » = distance au point d'amarrage, mesurée au même repère au sol. Progression : 3×30 propres → on recule et on repart à 3×20.",
   },
   soleaire_barre: {
+    saisie: ["reps", "charge", "rir", "technique"],
     nom: "Mollet genou fléchi — barre sur les genoux", groupe: "mollets", lieu: "maison",
     type_mesure: "reps_charge", reglages: "assis, hanche à 90° · tempo 3-1-3-2 (3 s montée, 1 s en haut, 3 s descente, 2 s en bas)",
     rampe: "aucun, les mollets sont déjà chauds", rir_cible: "1-2",
@@ -76,6 +87,7 @@ const LIBRARY = {
     consignes: "Progression : quand les 3 séries passent à 8 reps à RIR 1, on alourdit et on repart à 6.",
   },
   soleaire_presse: {
+    saisie: ["reps", "charge", "rir", "technique"],
     nom: "Mollet genou fléchi — machine assise", groupe: "mollets", lieu: "salle",
     type_mesure: "reps_charge", reglages: "tempo 3-1-3-2 (3 s montée, 1 s en haut, 3 s descente, 2 s en bas)",
     rampe: "aucun, les mollets sont déjà chauds", rir_cible: "1-2",
@@ -83,6 +95,7 @@ const LIBRARY = {
     consignes: "Progression : quand les 3 séries passent à 8 reps à RIR 1, on alourdit et on repart à 6.",
   },
   squat: {
+    saisie: ["reps", "charge", "rir", "technique", "echauffement"],
     nom: "Squat — barre", groupe: "quadriceps",
     type_mesure: "reps_charge", reglages: "descente contrôlée, montée explosive",
     rampe: "20×10 → 40×6 → 70×4", rir_cible: "1-2",
@@ -90,6 +103,7 @@ const LIBRARY = {
     consignes: "Progression : quand les 2 séries passent à 8 reps propres à RIR 1, +2,5 à 5 kg et on repart à 6.",
   },
   rdl: {
+    saisie: ["reps", "charge", "rir", "technique", "echauffement"],
     nom: "RDL — barre", groupe: "ischios",
     type_mesure: "reps_charge", reglages: "descente contrôlée, montée explosive",
     rampe: "1 série d'approche : 70×6", rir_cible: "1-2",
@@ -97,6 +111,7 @@ const LIBRARY = {
     consignes: "Progression : quand les 2 séries passent à 8 reps propres à RIR 1, +2,5 à 5 kg et on repart à 6.",
   },
   fente_bulgare: {
+    saisie: ["reps", "charge", "rir", "technique"],
     nom: "Fente bulgare — barre libre", groupe: "quadriceps", unilateral: true, premier_cote: "G",
     type_mesure: "reps_charge", reglages: "descente contrôlée, montée explosive · commencer par la gauche",
     rampe: "aucun, déjà chaud après squat et RDL", rir_cible: "1-2",
@@ -104,6 +119,7 @@ const LIBRARY = {
     consignes: "Progression : quand les 2 séries passent à 8 reps propres à RIR 1, +2,5 à 5 kg et on repart à 6.",
   },
   nordic: {
+    saisie: ["reps"],
     nom: "Nordic curl", groupe: "ischios",
     type_mesure: "reps_seules", reglages: "",
     rampe: "aucun",

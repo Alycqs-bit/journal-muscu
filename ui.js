@@ -27,6 +27,58 @@ function f(i) { return flags[i] || (flags[i] = {}); }
 function save() { if (live) Store.saveSeanceLive(live); }
 function vibrer(p) { try { if (navigator.vibrate) navigator.vibrate(p); } catch (err) { /* rien */ } }
 
+/* Bips : le navigateur n'autorise le son qu'après un appui de l'utilisateur, d'où debloquerSon() sur les boutons. */
+let audioCtx = null;
+function debloquerSon() {
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === "suspended") audioCtx.resume();
+  } catch (err) { audioCtx = null; }
+}
+function bip(n = 2) {
+  vibrer([200, 100, 200]);
+  if (!audioCtx) return;
+  try {
+    for (let k = 0; k < n; k++) {
+      const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+      const t = audioCtx.currentTime + k * 0.3;
+      o.frequency.value = 880;
+      o.connect(g);
+      g.connect(audioCtx.destination);
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(0.5, t + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.2);
+      o.start(t);
+      o.stop(t + 0.22);
+    }
+  } catch (err) { /* pas de son, la vibration suffit */ }
+}
+
+/* Petit message de confirmation en bas de l'écran. */
+function toast(txt) {
+  let el = $("toast");
+  if (!el) { el = h("div", { id: "toast", class: "toast" }); document.body.append(el); }
+  el.textContent = txt;
+  el.classList.add("show");
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => el.classList.remove("show"), 2200);
+}
+
+/* Champs proposés pour un exercice (data.js « saisie »), sinon tous ceux qui ont un sens pour son type. */
+function champ(exo, nom) {
+  if (exo.saisie) return exo.saisie.includes(nom);
+  const t = exo.type_mesure;
+  if (nom === "reps" || nom === "rir") return t === "reps_charge" || t === "reps_seules";
+  if (nom === "charge") return t === "reps_charge" || t === "temps_charge";
+  if (nom === "duree") return t === "temps" || t === "temps_charge";
+  return true;
+}
+
+/* Numéro de la prochaine série de travail (par côté pour un unilatéral). */
+function numeroSerie(exo, x, cote) {
+  return seriesTravail(x.series).filter((s) => !exo.unilateral || s.cote === cote).length + 1;
+}
+
 function dateFr(iso) {
   const [y, m, d] = iso.split("-").map(Number);
   return new Date(y, m - 1, d).toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" });
@@ -121,6 +173,7 @@ function renderAccueil() {
         onclick: () => {
           /* Lancée en premier : sur un nouvel appareil, la fenêtre Google doit s'ouvrir dans la foulée du clic. */
           synchroniserEnArrierePlan();
+          debloquerSon();
           live = Store.demarrerSeance(m.id);
           ouvert = null;
           allerA(ouvrirSeance);
@@ -457,11 +510,20 @@ function defaultDraft(exo, x, avant) {
 function renderSaisie(x, i, exo, avant) {
   const enEdition = edition && edition.idx === i;
   const d = enEdition ? x._edit : (x._draft || (x._draft = defaultDraft(exo, x, avant)));
-  const hasReps = exo.type_mesure === "reps_charge" || exo.type_mesure === "reps_seules";
-  const hasCharge = exo.type_mesure === "reps_charge" || exo.type_mesure === "temps_charge";
-  const hasDuree = exo.type_mesure === "temps" || exo.type_mesure === "temps_charge";
+  const hasReps = champ(exo, "reps") && !exo.reps_fixes;
+  const hasCharge = champ(exo, "charge");
+  const hasDuree = champ(exo, "duree");
   const form = h("div", { class: "saisie" + (enEdition ? " editing" : "") });
-  if (enEdition) form.append(h("p", { class: "label" }, "Correction de la série"));
+  if (enEdition) {
+    form.append(h("p", { class: "saisie-titre" }, "Correction de la série"));
+  } else {
+    const cote = exo.unilateral ? (d.cote === "G" ? " · gauche" : " · droite") : "";
+    const cible = range(exo.cible_series);
+    const n = numeroSerie(exo, x, d.cote);
+    form.append(h("p", { class: "saisie-titre" }, d.echauffement
+      ? `À noter : échauffement${cote}`
+      : `À noter : série ${n}${cible ? " / " + cible[1] : ""}${cote}${exo.reps_fixes ? ` — ${range(exo.cible_reps)[1]} reps` : ""}`));
+  }
 
   if (exo.unilateral) {
     form.append(h("div", { class: "seg" }, ["G", "D"].map((c) => h("button", {
@@ -502,19 +564,23 @@ function renderSaisie(x, i, exo, avant) {
 
   if (hasDuree) {
     const effortEnCours = live.effort && live.effort.idx === i;
-    form.append(h("div", { class: "field" }, h("span", { class: "field-label" }, "Durée"),
-      h("div", { class: "row" },
-        h("button", {
-          class: "btn-chrono" + (effortEnCours ? " running" : ""),
-          onclick: () => toggleEffort(x, i, exo, d),
-        }, h("span", { id: `effort-${i}` }, effortEnCours ? "…" : "▶"), effortEnCours ? " Stop" : " Chrono"),
-        h("input", {
-          class: "num-input", inputmode: "decimal", placeholder: "m:ss", value: dureeInput(d.duree_sec), "aria-label": "Durée",
-          oninput: (ev) => { d.duree_sec = parseDuree(ev.target.value); save(); },
-        }))));
+    const objectif = range(exo.cible_temps_sec);
+    if (!enEdition) {
+      form.append(h("button", {
+        class: "btn-chrono-grand" + (effortEnCours ? " running" : ""),
+        onclick: () => toggleEffort(x, i, exo, d),
+      }, effortEnCours
+        ? [h("span", { id: `effort-${i}`, class: "effort-temps" }, "…"), h("span", null, "■ Terminer — la série est enregistrée")]
+        : [h("span", { class: "effort-temps" }, "▶"), h("span", null, `Lancer la série${objectif ? " · bip à " + formatDuree(objectif[0]) : ""}`)]));
+    }
+    form.append(h("div", { class: "field" }, h("span", { class: "field-label" }, enEdition ? "Durée" : "Ou saisir la durée à la main"),
+      h("input", {
+        class: "num-input", inputmode: "decimal", placeholder: "m:ss", value: dureeInput(d.duree_sec), "aria-label": "Durée",
+        oninput: (ev) => { d.duree_sec = parseDuree(ev.target.value); save(); },
+      })));
   }
 
-  if (hasReps) {
+  if (hasReps && champ(exo, "rir")) {
     form.append(h("div", { class: "field" }, h("span", { class: "field-label" }, "RIR"),
       h("div", { class: "seg" }, [0, 1, 2, 3, 4].map((n) => h("button", {
         class: d.rir === n ? "selected" : "",
@@ -522,15 +588,17 @@ function renderSaisie(x, i, exo, avant) {
       }, String(n))))));
   }
 
-  form.append(h("div", { class: "field" }, h("span", { class: "field-label" }, "Technique"),
-    h("div", { class: "seg" },
-      h("button", { class: d.technique === "propre" ? "selected ok" : "", onclick: () => { d.technique = d.technique === "propre" ? null : "propre"; save(); renderSeance(); } }, "🟢 Propre"),
-      h("button", { class: d.technique === "degradee" ? "selected ko" : "", onclick: () => { d.technique = d.technique === "degradee" ? null : "degradee"; save(); renderSeance(); } }, "🟡 Dégradée"))));
+  if (champ(exo, "technique")) {
+    form.append(h("div", { class: "field" }, h("span", { class: "field-label" }, "Technique"),
+      h("div", { class: "seg" },
+        h("button", { class: d.technique === "propre" ? "selected ok" : "", onclick: () => { d.technique = d.technique === "propre" ? null : "propre"; save(); renderSeance(); } }, "🟢 Propre"),
+        h("button", { class: d.technique === "degradee" ? "selected ko" : "", onclick: () => { d.technique = d.technique === "degradee" ? null : "degradee"; save(); renderSeance(); } }, "🟡 Dégradée"))));
+  }
 
   const noteOuverte = f(i).note || d.commentaire;
   form.append(h("div", { class: "row" },
-    h("button", { class: "toggle" + (d.echauffement ? " on" : ""), onclick: () => { d.echauffement = !d.echauffement; save(); renderSeance(); } },
-      d.echauffement ? "☑ Échauffement" : "☐ Échauffement"),
+    champ(exo, "echauffement") ? h("button", { class: "toggle" + (d.echauffement ? " on" : ""), onclick: () => { d.echauffement = !d.echauffement; save(); renderSeance(); } },
+      d.echauffement ? "☑ Échauffement" : "☐ Échauffement") : null,
     h("button", { class: "toggle" + (noteOuverte ? " on" : ""), onclick: () => { f(i).note = !f(i).note; renderSeance(); } }, "💬 Note de série")));
   if (noteOuverte) {
     form.append(h("input", {
@@ -548,16 +616,17 @@ function renderSaisie(x, i, exo, avant) {
       h("button", { class: "btn-primary", onclick: () => enregistrerCorrection(x, i, exo) }, "Enregistrer")));
   } else {
     form.append(h("div", { class: "row" },
-      h("button", { class: "btn-secondary", onclick: () => copierPrecedente(x, exo, d, avant) }, "= précédente"),
-      h("button", { class: "btn-primary grow", onclick: () => validerSerie(x, i, exo) }, "Valider la série")));
+      hasReps || hasCharge ? h("button", { class: "btn-secondary", onclick: () => copierPrecedente(x, exo, d, avant) }, "= précédente") : null,
+      h("button", { class: "btn-primary grow", onclick: () => { debloquerSon(); validerSerie(x, i, exo); } },
+        d.echauffement ? "Enregistrer l'échauffement" : `Enregistrer la série ${numeroSerie(exo, x, d.cote)}`)));
   }
   return form;
 }
 
 function construireSerie(exo, d, i) {
-  const hasReps = exo.type_mesure === "reps_charge" || exo.type_mesure === "reps_seules";
-  const hasCharge = exo.type_mesure === "reps_charge" || exo.type_mesure === "temps_charge";
-  const hasDuree = exo.type_mesure === "temps" || exo.type_mesure === "temps_charge";
+  const hasReps = champ(exo, "reps") && !exo.reps_fixes;
+  const hasCharge = champ(exo, "charge");
+  const hasDuree = champ(exo, "duree");
   let err = null;
   if (hasReps && !(d.reps > 0)) err = "Indique le nombre de reps.";
   else if (hasCharge && d.charge == null) err = exo.unite === "kg" ? "Indique la charge (0 si poids du corps)." : "Indique la distance.";
@@ -568,11 +637,12 @@ function construireSerie(exo, d, i) {
   const s = {};
   if (exo.unilateral) s.cote = d.cote;
   if (hasReps) s.reps = Math.round(d.reps);
+  if (exo.reps_fixes) s.reps = range(exo.cible_reps)[1];
   if (hasCharge) s.charge = d.charge;
   if (hasDuree) s.duree_sec = Math.round(d.duree_sec);
-  if (hasReps && d.rir != null) s.rir = d.rir;
-  if (d.technique) s.technique = d.technique;
-  if (d.echauffement) s.echauffement = true;
+  if (hasReps && champ(exo, "rir") && d.rir != null) s.rir = d.rir;
+  if (champ(exo, "technique") && d.technique) s.technique = d.technique;
+  if (champ(exo, "echauffement") && d.echauffement) s.echauffement = true;
   if (d.commentaire && d.commentaire.trim()) s.commentaire = d.commentaire.trim();
   return s;
 }
@@ -580,8 +650,10 @@ function construireSerie(exo, d, i) {
 function validerSerie(x, i, exo) {
   const serie = construireSerie(exo, x._draft, i);
   if (!serie) return renderSeance();
+  const numero = numeroSerie(exo, x, serie.cote);
   Repos.onValidation(live, serie, cibleRepos(exo, [...x.series, serie]));
   x.series.push(serie);
+  toast(`✓ ${serie.echauffement ? "Échauffement" : "Série " + numero}${serie.cote ? (serie.cote === "G" ? " gauche" : " droite") : ""} enregistré${serie.echauffement ? "" : "e"} : ${formatSerie(exo, serie)}`);
   if (x.statut === "saute") x.statut = "a_faire";
   x._draft = {
     reps: serie.reps ?? null, charge: serie.charge ?? null, duree_sec: serie.duree_sec ?? null,
@@ -638,16 +710,21 @@ function copierPrecedente(x, exo, d, avant) {
   renderSeance();
 }
 
-/* Chrono d'effort (planche, porté valise) : le lancer met fin au repos, l'arrêter lance le repos. */
+/* Chrono d'effort (corde…) : le lancer met fin au repos ; le terminer enregistre la série et lance le repos.
+   Bip quand l'objectif de durée est atteint, le chrono continue ensuite. */
 function toggleEffort(x, i, exo, d) {
+  debloquerSon();
   if (live.effort && live.effort.idx === i) {
     d.duree_sec = Math.round((Date.now() - live.effort.start_ts) / 1000);
     live.effort = null;
     Repos.serieFinie(live, cibleRepos(exo, [...x.series, { cote: d.cote }]));
-  } else {
-    if (live.repos) Repos.jeRepars(live);
-    live.effort = { idx: i, start_ts: Date.now() };
+    save();
+    vibrer(30);
+    validerSerie(x, i, exo);
+    return;
   }
+  if (live.repos) Repos.jeRepars(live);
+  live.effort = { idx: i, start_ts: Date.now(), bip: false };
   save();
   vibrer(30);
   renderSeance();
@@ -679,16 +756,17 @@ function renderReposBar() {
     btn.textContent = "⏱ Série finie";
     return;
   }
-  if (dernierePhase === "decompte" && st.phase === "pret") vibrer([200, 100, 200]);
+  if (dernierePhase === "decompte" && st.phase === "pret") bip(2);
   if (dernierePhase === "pret" && st.phase === "depasse") vibrer(400);
   dernierePhase = st.phase;
-  temps.textContent = st.restant != null ? formatDuree(Math.ceil(st.restant)) : formatDuree(st.ecoule);
-  sub.textContent = st.cible ? `cible ${formatRange(st.cible, formatDuree)}${st.restant != null && st.restant <= 0 ? " · " + formatDuree(st.ecoule) + " écoulés" : ""}` : "repos libre";
+  temps.textContent = formatDuree(Math.floor(st.ecoule));
+  sub.textContent = st.cible ? `repos · cible ${formatRange(st.cible, formatDuree)}` : "repos";
   btn.textContent = "▶ Je repars";
 }
 
 function onReposBtn() {
   if (!live) return;
+  debloquerSon();
   if (live.repos) Repos.jeRepars(live);
   else Repos.serieFinie(live, cibleDepuisExoOuvert());
   save();
@@ -700,8 +778,16 @@ function tick() {
   if (vue !== "seance" || !live) return;
   renderReposBar();
   if (live.effort) {
+    const ecoule = Math.floor((Date.now() - live.effort.start_ts) / 1000);
     const el = $(`effort-${live.effort.idx}`);
-    if (el) el.textContent = formatDuree((Date.now() - live.effort.start_ts) / 1000);
+    if (el) el.textContent = formatDuree(ecoule);
+    const x = live.exos[live.effort.idx];
+    const objectif = x ? range(Store.getExo(x.exo_id).cible_temps_sec) : null;
+    if (objectif && !live.effort.bip && ecoule >= objectif[0]) {
+      live.effort.bip = true;
+      save();
+      bip(3);
+    }
   }
 }
 

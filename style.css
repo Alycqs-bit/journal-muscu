@@ -249,3 +249,10 @@ details summary { color: var(--muted); cursor: pointer; }
 .card-btn { width: 100%; text-align: left; border: 1px solid var(--line); font-weight: 400; }
 .card-btn .label { color: #93c5fd; }
 .suppr { display: flex; flex-direction: column; gap: 0.4rem; margin-top: 0.5rem; }
+
+.saisie-titre { font-size: 0.85rem; font-weight: 700; color: #93c5fd; text-transform: uppercase; letter-spacing: 0.04em; }
+.btn-chrono-grand { display: flex; flex-direction: column; align-items: center; gap: 0.2rem; width: 100%; padding: 0.9rem; background: var(--accent); color: white; font-weight: 700; }
+.btn-chrono-grand.running { background: var(--warn); color: #1a1205; }
+.effort-temps { font-size: 2rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.toast { position: fixed; left: 50%; bottom: 1.2rem; transform: translateX(-50%) translateY(150%); background: #166534; color: white; padding: 0.7rem 1rem; border-radius: 12px; font-weight: 600; z-index: 60; transition: transform 0.25s; max-width: 92vw; text-align: center; }
+.toast.show { transform: translateX(-50%) translateY(0); }
