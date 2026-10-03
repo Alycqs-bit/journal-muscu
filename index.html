@@ -18,7 +18,7 @@
       el.textContent = msg;
       el.style.display = "block";
     }
-    window.onerror = function (msg, src, line, col) {
+    window.onerror = function (msg, src, line) {
       showDebugError("Erreur JS : " + msg + " @ " + (src || "").split("/").pop() + ":" + line);
     };
     window.addEventListener("unhandledrejection", function (ev) {
@@ -26,39 +26,20 @@
     });
   </script>
 
-  <div id="view-connect" class="view">
-    <h1>Journal Muscu</h1>
-    <p id="status">Chargement…</p>
-    <button id="btn-connect" class="btn-primary" disabled>Se connecter avec Google</button>
+  <div id="repos-bar" class="repos-bar idle" style="display:none">
+    <div class="repos-info"><span id="repos-temps"></span><span id="repos-sub"></span></div>
+    <button id="repos-btn"></button>
   </div>
 
-  <div id="view-accueil" class="view" hidden>
-    <h1>Journal Muscu</h1>
-    <div id="derniere-seance-resume"></div>
-    <button id="btn-demarrer" class="btn-primary"></button>
-  </div>
-
-  <div id="view-seance" class="view" hidden>
-    <header class="seance-header">
-      <h1 id="seance-titre"></h1>
-      <button id="btn-terminer-seance">Terminer</button>
-    </header>
-    <p id="echauffement-rappel" class="echauffement"></p>
-    <div id="blocs-container"></div>
-  </div>
-  <div id="rest-timer" class="rest-timer" hidden></div>
-
-  <div id="view-fin" class="view" hidden>
-    <h1>Fin de séance</h1>
-    <textarea id="commentaire-seance" placeholder="Commentaire de séance…"></textarea>
-    <div id="tags-container" class="tags-container"></div>
-    <button id="btn-valider-archiver" class="btn-primary">Valider et archiver</button>
-    <p id="resume-preview"></p>
-  </div>
+  <main id="app"><p class="muted">Chargement…</p></main>
 
   <script src="https://accounts.google.com/gsi/client" async defer></script>
-  <script src="drive.js"></script>
+  <script src="data.js"></script>
+  <script src="historique.js"></script>
   <script src="store.js"></script>
+  <script src="timer.js"></script>
+  <script src="drive.js"></script>
+  <script src="resume.js"></script>
   <script src="ui.js"></script>
   <script src="app.js"></script>
 </body>

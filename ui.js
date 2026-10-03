@@ -1,463 +1,690 @@
-const TAGS_DISPONIBLES = ["decharge", "avant_course", "fatigue", "test_max", "reprise"];
-const RAISONS_SAUT = [
-  { id: "machine", label: "Machine prise" },
-  { id: "douleur", label: "Douleur" },
-  { id: "temps", label: "Temps" },
-  { id: "choix", label: "Choix" },
-];
+/* Affichage. Chaque écran est reconstruit entièrement à chaque action (render…) : simple et sans
+   état caché. Seuls la barre de repos et les chronos d'effort sont rafraîchis en continu (tick). */
 
-let live = null;
-let openKey = null;
-let timerInterval = null;
+let live = null;        // séance en cours (copie de travail, sauvegardée à chaque action)
+let vue = "accueil";
+let ouvert = null;      // index de l'exo déplié
+let edition = null;     // { idx, si } : série en cours de correction
+const flags = {};       // affichages temporaires par exo : { comment, saut, note, erreur }
+let dernierePhase = null;
 
 function $(id) { return document.getElementById(id); }
-function show(id) { $(id).style.display = ""; }
-function hide(id) { $(id).style.display = "none"; }
 
-function showView(name) {
-  ["view-connect", "view-accueil", "view-seance", "view-fin"].forEach(hide);
-  show(`view-${name}`);
+function h(tag, props, ...children) {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(props || {})) {
+    if (v == null || v === false) continue;
+    if (k === "class") el.className = v;
+    else if (k.startsWith("on")) el.addEventListener(k.slice(2), v);
+    else if (k === "value") el.value = v;
+    else el.setAttribute(k, v === true ? "" : v);
+  }
+  for (const c of children.flat(Infinity)) if (c != null && c !== false) el.append(c.nodeType ? c : String(c));
+  return el;
+}
+
+function f(i) { return flags[i] || (flags[i] = {}); }
+function save() { if (live) Store.saveSeanceLive(live); }
+function vibrer(p) { try { if (navigator.vibrate) navigator.vibrate(p); } catch (err) { /* rien */ } }
+
+function dateFr(iso) {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" });
+}
+function heure(ts) { return new Date(ts).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }); }
+function nomCourt(exo) { return exo.nom.split(" — ")[1] || exo.nom; }
+function autreCote(c) { return c === "G" ? "D" : "G"; }
+
+function parseNombre(txt) {
+  const n = parseFloat(String(txt).replace(",", ".").trim());
+  return Number.isFinite(n) ? n : null;
+}
+/* « 1:30 », « 1'30 » ou « 90 » → secondes. */
+function parseDuree(txt) {
+  const t = String(txt).trim();
+  if (!t) return null;
+  const m = t.match(/^(\d+)\s*[:'’]\s*(\d{1,2})"?$/);
+  if (m) return Number(m[1]) * 60 + Number(m[2]);
+  const n = parseNombre(t);
+  return n != null ? Math.round(n) : null;
+}
+function dureeInput(sec) {
+  if (sec == null) return "";
+  return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`;
+}
+
+/* ---------- Navigation (le bouton retour d'Android revient à l'accueil) ---------- */
+
+function allerA(fn) {
+  if (!location.hash) history.pushState(null, "", "#app");
+  fn();
+  window.scrollTo(0, 0);
+}
+function retourAccueil() {
+  if (location.hash) history.back();
+  else renderAccueil();
+}
+window.addEventListener("popstate", () => renderAccueil());
+
+function monter(...els) {
+  const app = $("app");
+  app.replaceChildren(...els.flat(Infinity).filter(Boolean));
+  renderReposBar();
 }
 
 /* ---------- Accueil ---------- */
 
-function renderAccueil() {
-  const derniere = Store.getDerniereArchive();
-  const prochain = Store.prochainModele();
-  const modele = Store.getModele(prochain);
-
-  $("derniere-seance-resume").innerHTML = derniere
-    ? `<p>Dernière séance : <strong>${derniere.modele}</strong> le ${derniere.date}${derniere.duree_min ? " (" + derniere.duree_min + " min)" : ""}</p>`
-    : `<p>Aucune séance archivée pour l'instant.</p>`;
-
-  $("btn-demarrer").textContent = `Démarrer ${modele.nom} (${prochain})`;
-  $("btn-demarrer").onclick = () => demarrerOuReprendre(prochain);
-
-  showView("accueil");
+function renderGoogle() {
+  if (DriveAuth.isConnected()) return h("span", { class: "pill ok" }, "Google ✓");
+  return h("button", {
+    class: "pill",
+    onclick: async () => {
+      try { await DriveAuth.ensureToken(); } catch (err) { alert("Connexion Google : " + err.message); }
+      renderAccueil();
+    },
+  }, "Se connecter à Google");
 }
 
-function demarrerOuReprendre(modeleId) {
+function resumeCourt(archive) {
+  const c = { fait: 0, partiel: 0, saute: 0 };
+  archive.exos.forEach((x) => { c[x.statut] = (c[x.statut] || 0) + 1; });
+  return h("p", { class: "muted" }, [`${c.fait} fait(s)`, c.partiel ? `${c.partiel} partiel(s)` : null, c.saute ? `${c.saute} pas fait(s)` : null].filter(Boolean).join(" · "));
+}
+
+function renderAccueil() {
+  vue = "accueil";
+  edition = null;
   live = Store.getSeanceLive();
-  if (!live) live = Store.demarrerSeance(modeleId);
-  openKey = null;
+  const els = [h("header", { class: "topline" }, h("h1", null, "Journal Muscu"), renderGoogle())];
+
+  if (live) {
+    const n = live.exos.reduce((t, x) => t + x.series.length, 0);
+    els.push(h("section", { class: "card accent" },
+      h("p", { class: "label" }, "Séance en cours"),
+      h("p", { class: "big" }, Store.getModele(live.modele).nom),
+      h("p", { class: "muted" }, `commencée à ${heure(live.debut_ts)} · ${n} série(s) notée(s)`),
+      h("div", { class: "row" },
+        h("button", { class: "btn-primary", onclick: () => allerA(ouvrirSeance) }, "Reprendre"),
+        h("button", {
+          class: "btn-ghost",
+          onclick: () => {
+            if (!confirm("Abandonner la séance en cours ? Les séries notées seront perdues.")) return;
+            Store.abandonnerSeance();
+            renderAccueil();
+          },
+        }, "Abandonner"))));
+  } else {
+    els.push(h("section", { class: "card" },
+      h("p", { class: "label" }, "Démarrer une séance"),
+      Store.getModelesActifs().map((m) => h("button", {
+        class: "btn-primary btn-block",
+        onclick: () => { live = Store.demarrerSeance(m.id); ouvert = null; allerA(ouvrirSeance); },
+      }, m.nom))));
+  }
+
+  const der = Store.getDerniereArchive();
+  if (der) {
+    els.push(h("section", { class: "card" },
+      h("p", { class: "label" }, "Dernière séance"),
+      h("p", null, `${dateFr(der.date)} — ${Store.getModele(der.modele).nom}${der.duree_min ? ` · ${der.duree_min} min` : ""}`),
+      resumeCourt(der)));
+  }
+
+  const box = Store.getOutbox();
+  const jamaisEnvoye = !lsGet("muscu:drive_init", false);
+  if (box.length || jamaisEnvoye) {
+    const status = h("p", { class: "muted" });
+    els.push(h("section", { class: "card warn" },
+      h("p", null, box.length
+        ? `${box.length} séance(s) pas encore envoyée(s) dans Drive.`
+        : "L'historique n'a pas encore été envoyé dans Drive (un fichier par exercice, pour les analyses)."),
+      h("button", {
+        class: "btn-secondary btn-block",
+        onclick: async (ev) => {
+          ev.target.disabled = true;
+          try {
+            await DriveAuth.ensureToken();
+            await envoyerOutbox((msg) => { status.textContent = msg; });
+            status.textContent = "✅ Envoyé dans Drive (dossier « Journal Muscu (app) »).";
+            setTimeout(renderAccueil, 1500);
+          } catch (err) {
+            status.textContent = "Échec : " + err.message;
+            ev.target.disabled = false;
+          }
+        },
+      }, "Envoyer dans Drive"),
+      status));
+  }
+
+  els.push(h("button", { class: "btn-secondary btn-block", onclick: () => allerA(renderHistorique) }, "📈 Historique par exercice"));
+  monter(...els);
+}
+
+/* ---------- Séance ---------- */
+
+function ouvrirSeance() {
+  live = Store.getSeanceLive();
+  if (!live) return renderAccueil();
+  vue = "seance";
+  Ecran.activer();
   renderSeance();
 }
 
-/* ---------- Écran séance ---------- */
-
 function renderSeance() {
-  const modele = Store.getModele(live.modele);
-  $("seance-titre").textContent = `${modele.nom} — ${live.date}`;
-  $("echauffement-rappel").textContent = modele.echauffement;
+  const m = Store.getModele(live.modele);
+  const head = h("header", { class: "seance-head" },
+    h("div", null, h("h1", null, m.nom), h("p", { class: "muted" }, `${dateFr(live.date)} · depuis ${heure(live.debut_ts)}`)),
+    h("div", { class: "row tight" },
+      Ecran.supporte() ? h("button", {
+        class: "icon-btn" + (Ecran.voulu() ? " on" : ""),
+        title: "Garder l'écran allumé",
+        onclick: () => { Ecran.setVoulu(!Ecran.voulu()); renderSeance(); },
+      }, "🔆") : null,
+      h("button", { class: "btn-secondary", onclick: () => { vue = "fin"; renderFin(); window.scrollTo(0, 0); } }, "Terminer")));
 
-  const container = $("blocs-container");
-  container.innerHTML = "";
+  const els = [head];
+  if (m.echauffement) els.push(h("p", { class: "echauffement" }, "Échauffement : " + m.echauffement));
 
-  live.blocs.forEach((bloc, bi) => {
-    const blocEl = document.createElement("div");
-    blocEl.className = "bloc";
-    const titre = document.createElement("h2");
-    titre.textContent = bloc.titre;
-    blocEl.appendChild(titre);
-
-    bloc.exos.forEach((e, ei) => {
-      blocEl.appendChild(renderExoCard(e, bi, ei));
-    });
-
-    container.appendChild(blocEl);
+  let blocCourant = null;
+  live.exos.forEach((x, i) => {
+    if (x.bloc !== blocCourant) { blocCourant = x.bloc; els.push(h("h2", null, x.bloc)); }
+    els.push(renderCarte(x, i));
   });
-
-  showView("seance");
+  els.push(h("button", { class: "btn-ghost btn-block", onclick: retourAccueil }, "← Accueil (la séance reste en cours)"));
+  monter(...els);
 }
 
-function renderExoCard(e, bi, ei) {
-  const exo = Store.getExo(e.exo_id);
-  const key = `${bi}-${ei}`;
-  const isOpen = key === openKey;
+function badgeExo(exo, x) {
+  if (x.statut === "saute") return h("span", { class: "badge skip" }, "pas fait");
+  const travail = seriesTravail(x.series);
+  if (!travail.length) return x.series.length ? h("span", { class: "badge" }, "échauffement") : null;
+  const n = exo.unilateral
+    ? Math.min(travail.filter((s) => s.cote === "G").length, travail.filter((s) => s.cote === "D").length)
+    : travail.length;
+  const cible = range(exo.cible_series);
+  const okCible = !cible || n >= cible[0];
+  return h("span", { class: "badge " + (okCible ? "done" : "partial") }, cible ? `${n}/${formatRange(cible, String)}${exo.unilateral ? " tours" : ""}` : `${n}`);
+}
 
-  const card = document.createElement("div");
-  card.className = "exo-card" + (isOpen ? " open" : "") + (e.statut === "saute" ? " saute" : "");
-
-  const header = document.createElement("button");
-  header.className = "exo-header";
-  header.innerHTML = `
-    <span class="exo-nom">${exo.nom}${e.statut === "saute" ? " (sauté)" : ""}</span>
-    <span class="exo-meta">${exo.reglages || ""}</span>
-  `;
-  header.onclick = () => { openKey = isOpen ? null : key; renderSeance(); };
-  card.appendChild(header);
-
-  if (isOpen) card.appendChild(renderExoBody(e, exo, bi, ei));
-
+function renderCarte(x, i) {
+  const exo = Store.getExo(x.exo_id);
+  const open = ouvert === i;
+  const card = h("div", { class: "exo-card" + (open ? " open" : "") + (x.statut === "saute" ? " saute" : "") });
+  card.append(h("button", {
+    class: "exo-header",
+    onclick: () => { ouvert = open ? null : i; edition = null; renderSeance(); },
+  },
+    h("span", { class: "exo-titre" }, h("span", { class: "exo-nom" }, exo.nom), badgeExo(exo, x)),
+    exo.reglages ? h("span", { class: "exo-meta" }, exo.reglages) : null));
+  if (open) card.append(renderCorps(x, i, exo));
   return card;
 }
 
-function renderExoBody(e, exo, bi, ei) {
-  const body = document.createElement("div");
-  body.className = "exo-body";
+function renderCorps(x, i, exo) {
+  const body = h("div", { class: "exo-body" });
 
-  const perfPassee = Store.getPerfPassee(exo.id, live.date);
-  const record = Store.getRecord(exo.id);
-
-  const cibleTxt = formatCible(exo);
-  body.innerHTML += `
-    <p class="cible">Cible : ${cibleTxt}</p>
-    <p class="bandeau">Perf. passée : <strong>${perfPassee ? formatSeries(exo, perfPassee.series) : "absent"}</strong>
-      &nbsp;·&nbsp; Record : <strong>${record ? formatSeries(exo, [record]) : "absent"}</strong></p>
-    ${exo.consignes ? `<p class="consignes">${exo.consignes}</p>` : ""}
-  `;
-
-  const journal = document.createElement("div");
-  journal.className = "series-log";
-  journal.innerHTML = e.series.length
-    ? "Séries faites : " + formatSeries(exo, e.series)
-    : "Aucune série encore.";
-  body.appendChild(journal);
-
-  if (e.statut !== "saute") {
-    body.appendChild(renderSaisie(e, exo, bi, ei, perfPassee));
+  if (x.variantes) {
+    body.append(h("div", { class: "chips" }, x.variantes.map((v) => {
+      const ve = Store.getExo(v);
+      return h("button", {
+        class: "chip" + (v === x.exo_id ? " selected" : ""),
+        onclick: () => {
+          if (v === x.exo_id) return;
+          if (x.series.length) { alert("Supprime d'abord les séries notées : les charges d'une variante à l'autre ne se comparent pas."); return; }
+          x.exo_id = v;
+          delete x._draft;
+          save();
+          renderSeance();
+        },
+      }, `${ve.lieu === "salle" ? "🏋️" : "🏠"} ${nomCourt(ve)}`);
+    })));
   }
 
-  const actions = document.createElement("div");
-  actions.className = "exo-actions";
+  body.append(h("p", { class: "cible" }, "Cible : " + formatCible(exo)));
+  if (exo.consignes) body.append(h("p", { class: "consignes" }, exo.consignes));
 
-  const btnComment = document.createElement("button");
-  btnComment.textContent = "💬 Commentaire";
-  btnComment.onclick = () => toggleComment(bi, ei);
-  actions.appendChild(btnComment);
+  const avant = Store.getPerfPassee(exo.id);
+  body.append(renderBandeau(exo, avant));
+  if (x.series.length) body.append(renderListeSeries(x, i, exo));
+  if (x.statut !== "saute") body.append(renderSaisie(x, i, exo, avant));
 
-  if (e.statut !== "saute") {
-    const btnSkip = document.createElement("button");
-    btnSkip.textContent = "Passer";
-    btnSkip.onclick = () => toggleSkipReasons(bi, ei);
-    actions.appendChild(btnSkip);
-  } else {
-    const btnUnskip = document.createElement("button");
-    btnUnskip.textContent = "Annuler le saut";
-    btnUnskip.onclick = () => { e.statut = "a_faire"; e.commentaire = ""; Store.saveSeanceLive(live); renderSeance(); };
-    actions.appendChild(btnUnskip);
+  const actions = h("div", { class: "exo-actions" },
+    h("button", { class: "btn-ghost" + (x.commentaire ? " has" : ""), onclick: () => { f(i).comment = !f(i).comment; renderSeance(); } }, x.commentaire ? "💬 Commentaire ✓" : "💬 Commentaire exo"));
+  if (x.statut === "saute") {
+    actions.append(h("button", { class: "btn-ghost", onclick: () => { x.statut = "a_faire"; x.raison = null; save(); renderSeance(); } }, "Annuler « pas fait »"));
+  } else if (!seriesTravail(x.series).length) {
+    actions.append(h("button", { class: "btn-ghost", onclick: () => { f(i).saut = !f(i).saut; renderSeance(); } }, "Pas fait"));
   }
+  body.append(actions);
 
-  body.appendChild(actions);
-
-  if (e._showComment) {
-    const textarea = document.createElement("textarea");
-    textarea.className = "comment-box";
-    textarea.value = e.commentaire || "";
-    textarea.placeholder = "Commentaire sur l'exo…";
-    textarea.oninput = () => { e.commentaire = textarea.value; Store.saveSeanceLive(live); };
-    body.appendChild(textarea);
+  if (f(i).saut && x.statut !== "saute") {
+    body.append(h("div", { class: "chips" }, RAISONS_SAUT.map((r) => h("button", {
+      class: "chip",
+      onclick: () => { x.statut = "saute"; x.raison = r.label; f(i).saut = false; save(); ouvert = null; renderSeance(); },
+    }, r.label))));
   }
-
-  if (e._showSkipReasons) {
-    const raisons = document.createElement("div");
-    raisons.className = "raisons-saut";
-    RAISONS_SAUT.forEach((r) => {
-      const b = document.createElement("button");
-      b.textContent = r.label;
-      b.onclick = () => { e.statut = "saute"; e.commentaire = r.label; e._showSkipReasons = false; Store.saveSeanceLive(live); renderSeance(); };
-      raisons.appendChild(b);
-    });
-    body.appendChild(raisons);
+  if (f(i).comment || x.statut === "saute" && x.commentaire) {
+    body.append(h("textarea", {
+      class: "comment-box",
+      placeholder: "Commentaire sur l'exercice…",
+      value: x.commentaire || "",
+      oninput: (ev) => { x.commentaire = ev.target.value; save(); },
+    }));
   }
-
   return body;
 }
 
-function renderSaisie(e, exo, bi, ei, perfPassee) {
-  const wrap = document.createElement("div");
-  wrap.className = "saisie";
-
-  if (exo.type_mesure === "temps") {
-    wrap.appendChild(renderChrono(e, (sec) => ajouterSerie(e, exo, bi, ei, { duree_sec: sec })));
-    return wrap;
+function renderBandeau(exo, avant) {
+  const box = h("div", { class: "bandeau" });
+  if (!avant) {
+    box.append(h("p", { class: "muted" }, "Jamais fait — pas de repère."));
+    return box;
   }
-
-  const state = e._draft || (e._draft = defaultDraft(exo, e, perfPassee));
-
-  if (exo.type_mesure !== "temps_charge") {
-    wrap.appendChild(renderStepper("Reps", state.reps, 1, (v) => { state.reps = v; renderSeance(); }));
+  const total = totalSeance(exo, avant.entry.series);
+  box.append(h("p", null, h("span", { class: "label" }, `Dernière fois · ${dateFr(avant.date)}`), h("br"),
+    h("strong", null, formatSeries(exo, avant.entry.series)), total != null ? `  ·  ${formatTotalDe(exo, avant.entry.series)}` : ""));
+  const notes = [avant.entry.commentaire, ...avant.entry.series.map((s) => s.commentaire)].filter(Boolean);
+  if (notes.length) box.append(h("p", { class: "note" }, "💬 " + notes.join(" · ")));
+  const rs = Store.getRecordSerie(exo.id);
+  const rt = Store.getRecordSeance(exo.id);
+  if (rs || rt) {
+    box.append(h("p", { class: "muted small" }, "Records : ",
+      rs ? `série ${formatSerie(exo, rs.serie)} (${dateFr(rs.date)})` : "",
+      rs && rt ? " · " : "",
+      rt ? `séance ${formatTotal(exo, rt.total)} (${dateFr(rt.date)})` : ""));
   }
-  wrap.appendChild(renderStepper("Charge (kg)", state.charge, 2.5, (v) => { state.charge = v; renderSeance(); }));
-  if (exo.type_mesure === "reps_charge" || exo.type_mesure === "reps_seules") {
-    wrap.appendChild(renderRirSelector(state));
-  }
-
-  const row = document.createElement("div");
-  row.className = "saisie-actions";
-
-  const btnPrev = document.createElement("button");
-  btnPrev.textContent = "= série précédente";
-  btnPrev.onclick = () => {
-    const ref = e.series.length ? e.series[e.series.length - 1] : perfPassee && perfPassee.series[perfPassee.series.length - 1];
-    if (ref) { state.reps = ref.reps ?? state.reps; state.charge = ref.charge ?? state.charge; }
-    renderSeance();
-  };
-  row.appendChild(btnPrev);
-
-  const btnValider = document.createElement("button");
-  btnValider.className = "btn-primary";
-  btnValider.textContent = "Valider la série";
-  btnValider.onclick = () => {
-    const serie = exo.type_mesure === "temps_charge" ? { charge: state.charge } : { reps: state.reps, charge: state.charge };
-    if (state.rir != null) serie.rir = state.rir;
-    ajouterSerie(e, exo, bi, ei, serie);
-  };
-  row.appendChild(btnValider);
-
-  wrap.appendChild(row);
-  return wrap;
+  return box;
 }
 
-function defaultDraft(exo, e, perfPassee) {
-  const ref = e.series.length ? e.series[e.series.length - 1] : perfPassee && perfPassee.series[0];
-  return {
-    reps: (ref && ref.reps) ?? (exo.cible_reps ? exo.cible_reps[0] : 0),
-    charge: (ref && ref.charge) ?? 0,
-    rir: null,
-  };
-}
-
-function renderRirSelector(state) {
-  const row = document.createElement("div");
-  row.className = "rir-selector";
-  const label = document.createElement("span");
-  label.textContent = "RIR";
-  row.appendChild(label);
-  [0, 1, 2, 3, 4].forEach((n) => {
-    const b = document.createElement("button");
-    b.textContent = n;
-    b.className = state.rir === n ? "selected" : "";
-    b.onclick = () => { state.rir = state.rir === n ? null : n; renderSeance(); };
-    row.appendChild(b);
+function renderListeSeries(x, i, exo) {
+  const list = h("div", { class: "series" });
+  let n = 0;
+  x.series.forEach((s, si) => {
+    const enEdition = edition && edition.idx === i && edition.si === si;
+    const tags = [];
+    if (s.rir != null) tags.push(`RIR ${s.rir}`);
+    if (s.technique) tags.push(s.technique === "propre" ? "🟢" : "🟡");
+    if (s.repos_avant_sec != null) tags.push(`⏱ ${formatDuree(s.repos_avant_sec)}${s.repos_precision === "exact" ? "" : "~"}`);
+    list.append(h("button", {
+      class: "serie-row" + (s.echauffement ? " ech" : "") + (enEdition ? " editing" : ""),
+      onclick: () => {
+        if (enEdition) { edition = null; } else { edition = { idx: i, si }; x._edit = Object.assign({}, s); }
+        renderSeance();
+      },
+    },
+      h("span", { class: "num" }, s.echauffement ? "éch." : `${++n}`),
+      h("span", { class: "main" }, (s.cote ? s.cote + " · " : "") + formatSerie(exo, s)),
+      h("span", { class: "tags" }, tags.join("  ")),
+      s.commentaire ? h("span", { class: "serie-note" }, "💬 " + s.commentaire) : null));
   });
-  return row;
+  return list;
 }
 
-function renderStepper(label, value, step, onChange) {
-  const row = document.createElement("div");
-  row.className = "stepper";
-  const minus = document.createElement("button");
-  minus.textContent = "−";
-  minus.onclick = () => onChange(Math.max(0, round1(value - step)));
-  const val = document.createElement("span");
-  val.textContent = `${label} : ${value}`;
-  const plus = document.createElement("button");
-  plus.textContent = "+";
-  plus.onclick = () => onChange(round1(value + step));
-  row.append(minus, val, plus);
-  return row;
-}
-
-function round1(n) { return Math.round(n * 10) / 10; }
-
-function renderChrono(e, onStop) {
-  const wrap = document.createElement("div");
-  wrap.className = "chrono";
-  const display = document.createElement("span");
-  display.textContent = "0:00";
-  const btn = document.createElement("button");
-  btn.className = "btn-primary";
-  btn.textContent = "Démarrer";
-
-  let startTs = null;
-  let interval = null;
-
-  btn.onclick = () => {
-    if (startTs === null) {
-      startTs = Date.now();
-      btn.textContent = "Arrêter";
-      interval = setInterval(() => { display.textContent = formatDuree(Math.floor((Date.now() - startTs) / 1000)); }, 250);
-    } else {
-      clearInterval(interval);
-      const sec = Math.floor((Date.now() - startTs) / 1000);
-      startTs = null;
-      btn.textContent = "Démarrer";
-      display.textContent = "0:00";
-      onStop(sec);
-    }
+function defaultDraft(exo, x, avant) {
+  const last = x.series[x.series.length - 1];
+  const refAvant = avant ? seriesTravail(avant.entry.series)[0] : null;
+  const ref = last || refAvant || {};
+  const reps = range(exo.cible_reps), temps = range(exo.cible_temps_sec);
+  return {
+    reps: ref.reps ?? (reps ? reps[0] : null),
+    charge: ref.charge ?? null,
+    duree_sec: ref.duree_sec ?? (temps ? temps[0] : null),
+    cote: exo.unilateral ? (last && last.cote ? autreCote(last.cote) : "G") : null,
+    rir: null, technique: null, echauffement: false, commentaire: "",
   };
-
-  wrap.append(display, btn);
-  return wrap;
 }
 
-function ajouterSerie(e, exo, bi, ei, serie) {
-  e.series.push(serie);
-  e.statut = "fait";
-  delete e._draft;
-  Store.saveSeanceLive(live);
+function renderSaisie(x, i, exo, avant) {
+  const enEdition = edition && edition.idx === i;
+  const d = enEdition ? x._edit : (x._draft || (x._draft = defaultDraft(exo, x, avant)));
+  const hasReps = exo.type_mesure === "reps_charge" || exo.type_mesure === "reps_seules";
+  const hasCharge = exo.type_mesure === "reps_charge" || exo.type_mesure === "temps_charge";
+  const hasDuree = exo.type_mesure === "temps" || exo.type_mesure === "temps_charge";
+  const form = h("div", { class: "saisie" + (enEdition ? " editing" : "") });
+  if (enEdition) form.append(h("p", { class: "label" }, "Correction de la série"));
+
+  if (exo.unilateral) {
+    form.append(h("div", { class: "seg" }, ["G", "D"].map((c) => h("button", {
+      class: d.cote === c ? "selected" : "",
+      onclick: () => { d.cote = c; save(); renderSeance(); },
+    }, c === "G" ? "Gauche" : "Droite"))));
+  }
+
+  if (hasReps) {
+    const input = h("input", {
+      class: "num-input", inputmode: "numeric", value: d.reps ?? "", "aria-label": "Reps",
+      oninput: (ev) => { d.reps = parseNombre(ev.target.value); save(); },
+    });
+    const step = (delta) => { d.reps = Math.max(0, (d.reps || 0) + delta); input.value = d.reps; save(); };
+    form.append(h("div", { class: "field" }, h("span", { class: "field-label" }, "Reps"),
+      h("div", { class: "stepper" }, h("button", { onclick: () => step(-1) }, "−"), input, h("button", { onclick: () => step(1) }, "+"))));
+  }
+
+  if (hasCharge) {
+    const [p1, p2] = exo.pas_charge;
+    const input = h("input", {
+      class: "num-input", inputmode: "decimal", value: d.charge != null ? fmtNum(d.charge) : "", "aria-label": "Charge",
+      oninput: (ev) => { d.charge = parseNombre(ev.target.value); save(); },
+    });
+    const step = (delta) => {
+      d.charge = Math.max(0, Math.round(((d.charge || 0) + delta) * 100) / 100);
+      input.value = fmtNum(d.charge);
+      save();
+    };
+    form.append(h("div", { class: "field" }, h("span", { class: "field-label" }, exo.unite === "kg" ? "Charge (kg)" : `Distance (${exo.unite})`),
+      h("div", { class: "stepper wide" },
+        h("button", { class: "small", onclick: () => step(-p2) }, `−${fmtNum(p2)}`),
+        h("button", { class: "small", onclick: () => step(-p1) }, `−${fmtNum(p1)}`),
+        input,
+        h("button", { class: "small", onclick: () => step(p1) }, `+${fmtNum(p1)}`),
+        h("button", { class: "small", onclick: () => step(p2) }, `+${fmtNum(p2)}`))));
+  }
+
+  if (hasDuree) {
+    const effortEnCours = live.effort && live.effort.idx === i;
+    form.append(h("div", { class: "field" }, h("span", { class: "field-label" }, "Durée"),
+      h("div", { class: "row" },
+        h("button", {
+          class: "btn-chrono" + (effortEnCours ? " running" : ""),
+          onclick: () => toggleEffort(x, i, exo, d),
+        }, h("span", { id: `effort-${i}` }, effortEnCours ? "…" : "▶"), effortEnCours ? " Stop" : " Chrono"),
+        h("input", {
+          class: "num-input", inputmode: "decimal", placeholder: "m:ss", value: dureeInput(d.duree_sec), "aria-label": "Durée",
+          oninput: (ev) => { d.duree_sec = parseDuree(ev.target.value); save(); },
+        }))));
+  }
+
+  if (hasReps) {
+    form.append(h("div", { class: "field" }, h("span", { class: "field-label" }, "RIR"),
+      h("div", { class: "seg" }, [0, 1, 2, 3, 4].map((n) => h("button", {
+        class: d.rir === n ? "selected" : "",
+        onclick: () => { d.rir = d.rir === n ? null : n; save(); renderSeance(); },
+      }, String(n))))));
+  }
+
+  form.append(h("div", { class: "field" }, h("span", { class: "field-label" }, "Technique"),
+    h("div", { class: "seg" },
+      h("button", { class: d.technique === "propre" ? "selected ok" : "", onclick: () => { d.technique = d.technique === "propre" ? null : "propre"; save(); renderSeance(); } }, "🟢 Propre"),
+      h("button", { class: d.technique === "degradee" ? "selected ko" : "", onclick: () => { d.technique = d.technique === "degradee" ? null : "degradee"; save(); renderSeance(); } }, "🟡 Dégradée"))));
+
+  const noteOuverte = f(i).note || d.commentaire;
+  form.append(h("div", { class: "row" },
+    h("button", { class: "toggle" + (d.echauffement ? " on" : ""), onclick: () => { d.echauffement = !d.echauffement; save(); renderSeance(); } },
+      d.echauffement ? "☑ Échauffement" : "☐ Échauffement"),
+    h("button", { class: "toggle" + (noteOuverte ? " on" : ""), onclick: () => { f(i).note = !f(i).note; renderSeance(); } }, "💬 Note de série")));
+  if (noteOuverte) {
+    form.append(h("input", {
+      class: "text-input", placeholder: "Note sur cette série…", value: d.commentaire || "",
+      oninput: (ev) => { d.commentaire = ev.target.value; save(); },
+    }));
+  }
+
+  if (f(i).erreur) form.append(h("p", { class: "erreur" }, f(i).erreur));
+
+  if (enEdition) {
+    form.append(h("div", { class: "row" },
+      h("button", { class: "btn-danger", onclick: () => supprimerSerie(x, i) }, "Supprimer"),
+      h("button", { class: "btn-ghost", onclick: () => { edition = null; f(i).erreur = null; renderSeance(); } }, "Annuler"),
+      h("button", { class: "btn-primary", onclick: () => enregistrerCorrection(x, i, exo) }, "Enregistrer")));
+  } else {
+    form.append(h("div", { class: "row" },
+      h("button", { class: "btn-secondary", onclick: () => copierPrecedente(x, exo, d, avant) }, "= précédente"),
+      h("button", { class: "btn-primary grow", onclick: () => validerSerie(x, i, exo) }, "Valider la série")));
+  }
+  return form;
+}
+
+function construireSerie(exo, d, i) {
+  const hasReps = exo.type_mesure === "reps_charge" || exo.type_mesure === "reps_seules";
+  const hasCharge = exo.type_mesure === "reps_charge" || exo.type_mesure === "temps_charge";
+  const hasDuree = exo.type_mesure === "temps" || exo.type_mesure === "temps_charge";
+  let err = null;
+  if (hasReps && !(d.reps > 0)) err = "Indique le nombre de reps.";
+  else if (hasCharge && d.charge == null) err = exo.unite === "kg" ? "Indique la charge (0 si poids du corps)." : "Indique la distance.";
+  else if (hasDuree && !(d.duree_sec > 0)) err = "Indique la durée (chrono ou m:ss).";
+  else if (exo.unilateral && !d.cote) err = "Choisis le côté.";
+  f(i).erreur = err;
+  if (err) return null;
+  const s = {};
+  if (exo.unilateral) s.cote = d.cote;
+  if (hasReps) s.reps = Math.round(d.reps);
+  if (hasCharge) s.charge = d.charge;
+  if (hasDuree) s.duree_sec = Math.round(d.duree_sec);
+  if (hasReps && d.rir != null) s.rir = d.rir;
+  if (d.technique) s.technique = d.technique;
+  if (d.echauffement) s.echauffement = true;
+  if (d.commentaire && d.commentaire.trim()) s.commentaire = d.commentaire.trim();
+  return s;
+}
+
+function validerSerie(x, i, exo) {
+  const serie = construireSerie(exo, x._draft, i);
+  if (!serie) return renderSeance();
+  Repos.onValidation(live, serie, cibleRepos(exo, [...x.series, serie]));
+  x.series.push(serie);
+  if (x.statut === "saute") x.statut = "a_faire";
+  x._draft = {
+    reps: serie.reps ?? null, charge: serie.charge ?? null, duree_sec: serie.duree_sec ?? null,
+    cote: exo.unilateral ? autreCote(serie.cote) : null,
+    rir: null, technique: null, echauffement: false, commentaire: "",
+  };
+  f(i).note = false;
+  save();
+  vibrer(30);
   renderSeance();
-  if (exo.repos_sec) startRestTimer(exo.repos_sec);
 }
 
-function toggleComment(bi, ei) {
-  const e = live.blocs[bi].exos[ei];
-  e._showComment = !e._showComment;
+function enregistrerCorrection(x, i, exo) {
+  const serie = construireSerie(exo, x._edit, i);
+  if (!serie) return renderSeance();
+  const ancienne = x.series[edition.si];
+  if (ancienne.repos_avant_sec != null) { serie.repos_avant_sec = ancienne.repos_avant_sec; serie.repos_precision = ancienne.repos_precision; }
+  x.series[edition.si] = serie;
+  edition = null;
+  save();
   renderSeance();
 }
 
-function toggleSkipReasons(bi, ei) {
-  const e = live.blocs[bi].exos[ei];
-  e._showSkipReasons = !e._showSkipReasons;
+function supprimerSerie(x, i) {
+  if (!confirm("Supprimer cette série ?")) return;
+  x.series.splice(edition.si, 1);
+  edition = null;
+  f(i).erreur = null;
+  save();
   renderSeance();
 }
 
-/* ---------- Chrono de repos ---------- */
+function copierPrecedente(x, exo, d, avant) {
+  const ref = x.series[x.series.length - 1] || (avant ? seriesTravail(avant.entry.series)[0] : null);
+  if (!ref) return;
+  if (ref.reps != null) d.reps = ref.reps;
+  if (ref.charge != null) d.charge = ref.charge;
+  if (ref.duree_sec != null) d.duree_sec = ref.duree_sec;
+  save();
+  renderSeance();
+}
 
-function startRestTimer(sec) {
-  clearInterval(timerInterval);
-  const bar = $("rest-timer");
-  let remaining = sec;
-  show("rest-timer");
-  bar.textContent = `Repos : ${formatDuree(remaining)}`;
-  bar.classList.remove("done");
-  timerInterval = setInterval(() => {
-    remaining--;
-    if (remaining <= 0) {
-      clearInterval(timerInterval);
-      bar.textContent = "Repos terminé !";
-      bar.classList.add("done");
-      if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
-      setTimeout(() => hide("rest-timer"), 4000);
-    } else {
-      bar.textContent = `Repos : ${formatDuree(remaining)}`;
-    }
-  }, 1000);
+/* Chrono d'effort (planche, porté valise) : le lancer met fin au repos, l'arrêter lance le repos. */
+function toggleEffort(x, i, exo, d) {
+  if (live.effort && live.effort.idx === i) {
+    d.duree_sec = Math.round((Date.now() - live.effort.start_ts) / 1000);
+    live.effort = null;
+    Repos.serieFinie(live, cibleRepos(exo, [...x.series, { cote: d.cote }]));
+  } else {
+    if (live.repos) Repos.jeRepars(live);
+    live.effort = { idx: i, start_ts: Date.now() };
+  }
+  save();
+  vibrer(30);
+  renderSeance();
+}
+
+/* ---------- Barre de repos (toujours en haut pendant la séance) ---------- */
+
+function cibleDepuisExoOuvert() {
+  if (ouvert == null || !live.exos[ouvert]) return null;
+  const x = live.exos[ouvert];
+  const exo = Store.getExo(x.exo_id);
+  const d = x._draft || {};
+  return cibleRepos(exo, [...x.series, { cote: d.cote, echauffement: d.echauffement }]);
+}
+
+function renderReposBar() {
+  const bar = $("repos-bar");
+  const actif = vue === "seance" && live;
+  document.body.classList.toggle("has-bar", !!actif);
+  bar.style.display = actif ? "" : "none";
+  if (!actif) return;
+  const st = Repos.etat(live);
+  const temps = $("repos-temps"), sub = $("repos-sub"), btn = $("repos-btn");
+  bar.className = "repos-bar " + (st ? st.phase : "idle");
+  if (!st) {
+    dernierePhase = null;
+    temps.textContent = live.reposEnAttente ? formatDuree(live.reposEnAttente.sec) : "Repos";
+    sub.textContent = live.reposEnAttente ? "repos noté" : "à la fin de la série :";
+    btn.textContent = "⏱ Série finie";
+    return;
+  }
+  if (dernierePhase === "decompte" && st.phase === "pret") vibrer([200, 100, 200]);
+  if (dernierePhase === "pret" && st.phase === "depasse") vibrer(400);
+  dernierePhase = st.phase;
+  temps.textContent = st.restant != null ? formatDuree(Math.ceil(st.restant)) : formatDuree(st.ecoule);
+  sub.textContent = st.cible ? `cible ${formatRange(st.cible, formatDuree)}${st.restant != null && st.restant <= 0 ? " · " + formatDuree(st.ecoule) + " écoulés" : ""}` : "repos libre";
+  btn.textContent = "▶ Je repars";
+}
+
+function onReposBtn() {
+  if (!live) return;
+  if (live.repos) Repos.jeRepars(live);
+  else Repos.serieFinie(live, cibleDepuisExoOuvert());
+  save();
+  vibrer(30);
+  if (vue === "seance") renderSeance(); else renderReposBar();
+}
+
+function tick() {
+  if (vue !== "seance" || !live) return;
+  renderReposBar();
+  if (live.effort) {
+    const el = $(`effort-${live.effort.idx}`);
+    if (el) el.textContent = formatDuree((Date.now() - live.effort.start_ts) / 1000);
+  }
 }
 
 /* ---------- Fin de séance ---------- */
 
 function renderFin() {
-  $("commentaire-seance").value = live.commentaire_seance || "";
+  const nonFaits = live.exos.map((x, i) => ({ x, i })).filter(({ x }) => !seriesTravail(x.series).length);
+  const faits = live.exos.length - nonFaits.length;
+  const els = [
+    h("header", { class: "seance-head" }, h("h1", null, "Fin de séance"),
+      h("button", { class: "btn-ghost", onclick: () => { vue = "seance"; renderSeance(); } }, "← Séance")),
+    h("p", { class: "muted" }, `${faits} exercice(s) fait(s) sur ${live.exos.length} · ${Math.round((Date.now() - live.debut_ts) / 60000)} min`),
+  ];
 
-  const tagsEl = $("tags-container");
-  tagsEl.innerHTML = "";
-  TAGS_DISPONIBLES.forEach((tag) => {
-    const btn = document.createElement("button");
-    btn.textContent = tag;
-    btn.className = "tag" + (live.tags.includes(tag) ? " selected" : "");
-    btn.onclick = () => {
-      live.tags = live.tags.includes(tag) ? live.tags.filter((t) => t !== tag) : [...live.tags, tag];
-      Store.saveSeanceLive(live);
-      renderFin();
-    };
-    tagsEl.appendChild(btn);
-  });
-
-  showView("fin");
-}
-
-async function validerEtArchiver() {
-  live.commentaire_seance = $("commentaire-seance").value;
-  Store.saveSeanceLive(live);
-
-  const archive = Store.finaliserSeance(live.commentaire_seance, live.tags);
-  const resume = buildResumeMarkdown(archive);
-
-  $("resume-preview").textContent = "Écriture dans Drive…";
-  try {
-    await DriveAuth.writeOrUpdateFile("journal-muscu-derniere-seance.md", resume, "text/markdown");
-    await DriveAuth.writeOrUpdateFile(`journal-muscu-archive-${archive.date}-${archive.modele}.md`, resume, "text/markdown");
-    $("resume-preview").textContent = "Séance archivée et écrite dans ton Drive.";
-  } catch (err) {
-    $("resume-preview").textContent = "Séance archivée localement, mais échec d'écriture Drive : " + err;
+  if (nonFaits.length) {
+    els.push(h("section", { class: "card" }, h("p", { class: "label" }, "Pas faits — pourquoi ?"),
+      nonFaits.map(({ x }) => {
+        const exo = Store.getExo(x.exo_id);
+        const actuelle = x.raison || "Pas le temps";
+        return h("div", { class: "nonfait" }, h("p", null, exo.nom),
+          h("div", { class: "chips" }, RAISONS_SAUT.map((r) => h("button", {
+            class: "chip" + (r.label === actuelle ? " selected" : ""),
+            onclick: () => { x.raison = r.label; save(); renderFin(); },
+          }, r.label))));
+      })));
   }
 
+  els.push(h("textarea", {
+    class: "comment-box", placeholder: "Commentaire de séance (forme, contexte, sensations…)",
+    value: live.commentaire_seance || "",
+    oninput: (ev) => { live.commentaire_seance = ev.target.value; save(); },
+  }));
+  els.push(h("div", { class: "chips" }, TAGS_DISPONIBLES.map((t) => h("button", {
+    class: "chip" + (live.tags.includes(t) ? " selected" : ""),
+    onclick: () => { live.tags = live.tags.includes(t) ? live.tags.filter((y) => y !== t) : [...live.tags, t]; save(); renderFin(); },
+  }, t))));
+  els.push(h("button", { class: "btn-primary btn-block", onclick: (ev) => validerEtArchiver(ev.target) }, "Valider et archiver"));
+  monter(...els);
+}
+
+async function validerEtArchiver(btn) {
+  if (!confirm("Archiver la séance ? Elle ne sera plus modifiable.")) return;
+  btn.disabled = true;
+  /* La fenêtre Google doit s'ouvrir tout de suite après le clic, sinon le navigateur la bloque. */
+  let erreurGoogle = null;
+  const google = DriveAuth.ensureToken().catch((err) => { erreurGoogle = err; });
+
+  live.exos.forEach((x) => { if (!seriesTravail(x.series).length && !x.raison) x.raison = "Pas le temps"; });
+  Repos.arreter(live);
+  live.effort = null;
+  const archive = Store.finaliserSeance(live);
   live = null;
-  openKey = null;
+  Ecran.relacher();
+  vue = "apres";
+
+  const status = h("p", { class: "muted" }, "Envoi vers Drive…");
+  monter(
+    h("h1", null, "Séance archivée ✓"),
+    h("section", { class: "card" }, h("p", null, `${dateFr(archive.date)} — ${Store.getModele(archive.modele).nom} · ${archive.duree_min} min`), resumeCourt(archive)),
+    status,
+    h("details", null, h("summary", null, "Voir le résumé envoyé"), h("pre", { class: "resume" }, buildResumeMarkdown(archive))),
+    h("button", { class: "btn-primary btn-block", onclick: retourAccueil }, "Retour à l'accueil"));
+
+  await google;
+  if (erreurGoogle) {
+    status.textContent = `Séance enregistrée sur le téléphone. Pas encore dans Drive (${erreurGoogle.message}) : tu pourras l'envoyer depuis l'accueil.`;
+    return;
+  }
+  try {
+    await envoyerOutbox((msg) => { status.textContent = msg; });
+    status.textContent = "✅ Séance enregistrée et envoyée dans Drive.";
+  } catch (err) {
+    status.textContent = `Séance enregistrée sur le téléphone, mais l'envoi Drive a échoué (${err.message}). Réessaie depuis l'accueil.`;
+  }
 }
 
-/* ---------- Résumé Markdown (cahier des charges §5) ---------- */
+/* ---------- Historique par exercice ---------- */
 
-function formatCible(exo) {
-  if (exo.type_mesure === "reps_charge" || exo.type_mesure === "reps_seules") {
-    return `${exo.cible_series}x${exo.cible_reps[0]}-${exo.cible_reps[1]}, repos ${formatDuree(exo.repos_sec)}`;
+function renderHistorique() {
+  vue = "historique";
+  const actuels = [];
+  for (const m of Store.getModelesActifs()) for (const b of m.blocs) for (const slot of b.slots) {
+    for (const id of typeof slot === "string" ? [slot] : slot.variantes) if (!actuels.includes(id)) actuels.push(id);
   }
-  if (exo.type_mesure === "temps") return `${exo.cible_series} séries, repos ${formatDuree(exo.repos_sec)}`;
-  if (exo.type_mesure === "temps_charge") return `${exo.cible_series}x${formatDuree(exo.cible_temps_sec)}, repos ${formatDuree(exo.repos_sec)}`;
-  return `${exo.cible_series} séries`;
+  const autres = Store.getExosAvecHistorique().filter((id) => !actuels.includes(id));
+  const ligne = (id) => {
+    const exo = Store.getExo(id);
+    const hist = Store.getHistoriqueExo(id).filter((y) => seriesTravail(y.entry.series).length);
+    return h("button", { class: "list-row", onclick: () => allerA(() => renderHistoriqueExo(id)) },
+      h("span", null, exo.nom),
+      h("span", { class: "muted small" }, hist.length ? `${hist.length} séance(s) · ${dateFr(hist[0].date)}` : "jamais fait"));
+  };
+  monter(
+    h("header", { class: "seance-head" }, h("h1", null, "Historique"), h("button", { class: "btn-ghost", onclick: retourAccueil }, "← Accueil")),
+    h("h2", null, "Programme actuel"), actuels.map(ligne),
+    autres.length ? h("h2", null, "Anciens exercices") : null, autres.map(ligne));
 }
 
-function meilleureSerie(exo, series) {
-  let best = null;
-  for (const s of series) if (!best || isBetterSet(exo, s, best)) best = s;
-  return best;
-}
-
-function computeDelta(exo, perfSeries, realiseSeries) {
-  if (!perfSeries || !realiseSeries || !realiseSeries.length) return "—";
-  const prev = meilleureSerie(exo, perfSeries);
-  const now = meilleureSerie(exo, realiseSeries);
-  if (!prev || !now) return "—";
-  if (exo.type_mesure === "temps") {
-    const d = (now.duree_sec || 0) - (prev.duree_sec || 0);
-    return (d >= 0 ? "+" : "") + d + "s";
-  }
-  let d = (now.charge || 0) - (prev.charge || 0);
-  if (exo.charge_inversee) d = -d;
-  return (d >= 0 ? "+" : "") + d + "kg";
-}
-
-function tonnage(archive) {
-  let t = 0;
-  for (const e of archive.exos) {
-    const exo = Store.getExo(e.exo_id);
-    if (exo.type_mesure === "reps_charge" && !exo.charge_inversee) {
-      t += e.series.reduce((s, ser) => s + (ser.reps || 0) * (ser.charge || 0), 0);
-    }
-  }
-  return t;
-}
-
-function buildResumeMarkdown(archive) {
-  const modele = Store.getModele(archive.modele);
-  const lines = [];
-  lines.push(`# Séance ${archive.modele} — ${archive.date}`, "");
-  lines.push(`Modèle : ${modele.nom} (v${archive.version_programme ?? modele.version})`);
-  lines.push(`Durée : ${archive.duree_min != null ? archive.duree_min + " min" : "non mesurée"}`);
-  lines.push(`Tags : ${archive.tags.length ? archive.tags.join(", ") : "aucun"}`);
-  lines.push(`Commentaire : ${archive.commentaire_seance || "—"}`, "");
-  lines.push("## Exercices", "", "| Exercice | Cible | Perf. passée | Réalisé | Δ | Commentaire |", "|---|---|---|---|---|---|");
-
-  const ecarts = [];
-  const questions = [];
-
-  for (const e of archive.exos) {
-    const exo = Store.getExo(e.exo_id);
-    const perfObj = Store.getPerfPassee(e.exo_id, archive.date);
-    const perfTxt = perfObj ? formatSeries(exo, perfObj.series) : "absent";
-    const realiseTxt = e.statut === "saute" ? "sauté" : formatSeries(exo, e.series);
-    const delta = e.statut === "saute" ? "—" : computeDelta(exo, perfObj ? perfObj.series : null, e.series);
-    lines.push(`| ${exo.nom} | ${formatCible(exo)} | ${perfTxt} | ${realiseTxt} | ${delta} | ${(e.commentaire || "").replace(/\|/g, "/")} |`);
-
-    if (e.statut === "saute") ecarts.push(`- ${exo.nom} : sauté (${e.commentaire || "raison non précisée"})`);
-    if (delta.startsWith("-")) questions.push(`- ${exo.nom} : baisse vs perf. passée (${delta})`);
-  }
-
-  lines.push("", "## Écarts au programme", ecarts.length ? ecarts.join("\n") : "Aucun écart.");
-
-  lines.push("", "## Repères historiques (record par exo)");
-  for (const e of archive.exos) {
-    const exo = Store.getExo(e.exo_id);
-    const record = Store.getRecord(e.exo_id);
-    lines.push(`- ${exo.nom} : ${record ? formatSeries(exo, [record]) : "absent"}`);
-  }
-
-  lines.push("", "## Tendances");
-  lines.push(`Tonnage de la séance (exos reps_charge uniquement, hors charge inversée) : ${tonnage(archive)} kg.`);
-  const precedentes = Store.getArchives().filter((a) => a.modele === archive.modele && a.date < archive.date).slice(0, 3);
-  lines.push(
-    precedentes.length
-      ? `3 séances précédentes du même modèle : ${precedentes.map((a) => `${a.date}: ${tonnage(a)}kg`).join(", ")}.`
-      : "Pas assez d'historique pour comparer."
-  );
-
-  lines.push("", "## Contexte");
-  lines.push(`Tags de cette séance : ${archive.tags.length ? archive.tags.join(", ") : "aucun"}.`);
-
-  lines.push("", "## Questions ouvertes");
-  lines.push(questions.length ? questions.join("\n") : "Rien de particulier détecté automatiquement.");
-
-  return lines.join("\n");
+function renderHistoriqueExo(id) {
+  vue = "historique";
+  const exo = Store.getExo(id);
+  const rs = Store.getRecordSerie(id);
+  const rt = Store.getRecordSeance(id);
+  const entrees = Store.getHistoriqueExo(id).map(({ date, entry }) => {
+    const total = totalSeance(exo, entry.series);
+    let n = 0;
+    return h("section", { class: "card hist" },
+      h("p", { class: "hist-head" }, h("strong", null, dateFr(date)), h("span", { class: "badge " + (entry.statut === "saute" ? "skip" : entry.statut === "partiel" ? "partial" : "done") }, entry.statut === "saute" ? "pas fait" : entry.statut)),
+      entry.statut === "saute"
+        ? h("p", { class: "muted" }, entry.raison || entry.commentaire || "")
+        : [h("p", null, h("strong", null, formatSeries(exo, entry.series)), total != null ? ` · ${formatTotalDe(exo, entry.series)}` : ""),
+           h("div", { class: "hist-detail" }, entry.series.map((s) => h("p", { class: s.echauffement ? "ech" : "" }, (s.echauffement ? "éch. " : `${++n}. `) + detailSerie(exo, s)))),
+           entry.commentaire ? h("p", { class: "note" }, "💬 " + entry.commentaire) : null]);
+  });
+  monter(
+    h("header", { class: "seance-head" }, h("h1", null, exo.nom), h("button", { class: "btn-ghost", onclick: () => renderHistorique() }, "← Liste")),
+    h("p", { class: "cible" }, "Cible : " + (formatCible(exo) || "—")),
+    h("p", { class: "muted" }, `Record série : ${rs ? formatSerie(exo, rs.serie) + " (" + dateFr(rs.date) + ")" : "—"} · Record séance : ${rt ? formatTotal(exo, rt.total) + " (" + dateFr(rt.date) + ")" : "—"}`),
+    entrees.length ? entrees : h("p", { class: "muted" }, "Aucune séance enregistrée."));
 }

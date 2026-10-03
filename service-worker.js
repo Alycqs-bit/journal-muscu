@@ -1,10 +1,14 @@
-const CACHE_NAME = "journal-muscu-v6";
+const CACHE_NAME = "journal-muscu-v7";
 const ASSETS = [
   "./",
   "./index.html",
   "./manifest.json",
   "./icon.svg",
   "./style.css",
+  "./data.js",
+  "./historique.js",
+  "./timer.js",
+  "./resume.js",
   "./drive.js",
   "./store.js",
   "./ui.js",

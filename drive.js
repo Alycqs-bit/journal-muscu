@@ -1,14 +1,23 @@
+/* Connexion Google + écriture dans Drive.
+
+   - Le jeton d'accès (valable ~1 h) est gardé dans le navigateur : un rechargement ne déconnecte plus (C6).
+   - La séance elle-même n'a pas besoin de Google : on ne demande la connexion qu'au moment d'écrire.
+   - Autorisation « drive.file » : l'app ne voit QUE les fichiers qu'elle a créés. Elle range tout dans
+     son propre dossier « Journal Muscu (app) », qu'on peut déplacer où on veut dans Drive (C8). */
+
 const CLIENT_ID = "68380651068-8sng7sm5q520vk581gvoeeve0m9hpmj3.apps.googleusercontent.com";
 const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file";
+const DOSSIER_APP = "Journal Muscu (app)";
+const TOKEN_KEY = "muscu:google_token";
 
 const DriveAuth = (() => {
   let tokenClient = null;
-  let accessToken = null;
-  let loginCallback = null;
+  let pending = null;
+  let dossierId = null;
 
-  function waitForGoogleIdentity(cb) {
+  function waitForGoogleIdentity(cb, tries = 0) {
     if (window.google && google.accounts && google.accounts.oauth2) cb();
-    else setTimeout(() => waitForGoogleIdentity(cb), 100);
+    else if (tries < 300) setTimeout(() => waitForGoogleIdentity(cb, tries + 1), 100);
   }
 
   function init(onReady) {
@@ -16,65 +25,97 @@ const DriveAuth = (() => {
       tokenClient = google.accounts.oauth2.initTokenClient({
         client_id: CLIENT_ID,
         scope: DRIVE_SCOPE,
-        callback: (response) => {
-          if (response.error) {
-            if (loginCallback) loginCallback({ ok: false, error: response.error });
-            return;
-          }
-          accessToken = response.access_token;
-          if (loginCallback) loginCallback({ ok: true });
+        callback: (resp) => {
+          const p = pending;
+          pending = null;
+          if (!p) return;
+          if (resp.error) return p.reject(new Error(resp.error));
+          lsSet(TOKEN_KEY, { access_token: resp.access_token, exp: Date.now() + (Number(resp.expires_in) || 3600) * 1000 });
+          p.resolve();
+        },
+        error_callback: (err) => {
+          const p = pending;
+          pending = null;
+          if (p) p.reject(new Error(err && err.type === "popup_closed" ? "fenêtre Google fermée" : (err && err.type) || "connexion impossible"));
         },
       });
-      onReady();
+      if (onReady) onReady();
     });
   }
 
-  function login(callback) {
-    loginCallback = callback;
-    tokenClient.requestAccessToken();
+  function token() {
+    const t = lsGet(TOKEN_KEY, null);
+    return t && t.exp > Date.now() + 60000 ? t.access_token : null;
   }
 
-  function isConnected() {
-    return !!accessToken;
-  }
+  function isReady() { return !!tokenClient; }
+  function isConnected() { return !!token(); }
 
-  async function findFileByName(name) {
-    const q = encodeURIComponent(`name = '${name.replace(/'/g, "\\'")}' and trashed = false`);
-    const res = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)`, {
-      headers: { Authorization: `Bearer ${accessToken}` },
+  /* À appeler en tout premier dans un clic : le navigateur n'autorise la fenêtre Google
+     que juste après un geste de l'utilisateur. */
+  function ensureToken() {
+    if (token()) return Promise.resolve();
+    return new Promise((resolve, reject) => {
+      if (!tokenClient) return reject(new Error("Google pas encore chargé (connexion internet ?)"));
+      pending = { resolve, reject };
+      const dejaAutorise = !!lsGet(TOKEN_KEY, null);
+      tokenClient.requestAccessToken(dejaAutorise ? { prompt: "" } : {});
     });
-    const data = await res.json();
-    return data.files && data.files.length ? data.files[0] : null;
   }
 
-  async function createFile(name, content, mimeType) {
-    const boundary = "-------journalmuscu";
-    const metadata = { name, mimeType };
-    const body =
-      `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n` +
-      `--${boundary}\r\nContent-Type: ${mimeType}\r\n\r\n${content}\r\n` +
-      `--${boundary}--`;
-    const res = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart", {
+  function deconnecter() {
+    localStorage.removeItem(TOKEN_KEY);
+  }
+
+  async function api(url, options = {}) {
+    const res = await fetch(url, Object.assign({}, options, {
+      headers: Object.assign({ Authorization: `Bearer ${token()}` }, options.headers || {}),
+    }));
+    if (res.status === 401) {
+      deconnecter();
+      throw new Error("session Google expirée, reconnecte-toi");
+    }
+    if (!res.ok) throw new Error(`Drive a répondu ${res.status} : ${(await res.text()).slice(0, 200)}`);
+    return res.json();
+  }
+
+  function q(str) { return str.replace(/\\/g, "\\\\").replace(/'/g, "\\'"); }
+
+  async function getDossier() {
+    if (dossierId) return dossierId;
+    const query = encodeURIComponent(`name = '${q(DOSSIER_APP)}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`);
+    const found = await api(`https://www.googleapis.com/drive/v3/files?q=${query}&fields=files(id)`);
+    if (found.files && found.files.length) return (dossierId = found.files[0].id);
+    const created = await api("https://www.googleapis.com/drive/v3/files", {
       method: "POST",
-      headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": `multipart/related; boundary=${boundary}` },
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: DOSSIER_APP, mimeType: "application/vnd.google-apps.folder" }),
+    });
+    return (dossierId = created.id);
+  }
+
+  async function writeFile(name, content, mimeType = "text/markdown") {
+    const parent = await getDossier();
+    const query = encodeURIComponent(`name = '${q(name)}' and '${parent}' in parents and trashed = false`);
+    const found = await api(`https://www.googleapis.com/drive/v3/files?q=${query}&fields=files(id)`);
+    if (found.files && found.files.length) {
+      return api(`https://www.googleapis.com/upload/drive/v3/files/${found.files[0].id}?uploadType=media`, {
+        method: "PATCH",
+        headers: { "Content-Type": `${mimeType}; charset=UTF-8` },
+        body: content,
+      });
+    }
+    const boundary = "-------journalmuscu";
+    const body =
+      `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify({ name, mimeType, parents: [parent] })}\r\n` +
+      `--${boundary}\r\nContent-Type: ${mimeType}; charset=UTF-8\r\n\r\n${content}\r\n` +
+      `--${boundary}--`;
+    return api("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart", {
+      method: "POST",
+      headers: { "Content-Type": `multipart/related; boundary=${boundary}` },
       body,
     });
-    return res.json();
   }
 
-  async function updateFile(fileId, content, mimeType) {
-    const res = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`, {
-      method: "PATCH",
-      headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": mimeType },
-      body: content,
-    });
-    return res.json();
-  }
-
-  async function writeOrUpdateFile(name, content, mimeType = "text/markdown") {
-    const existing = await findFileByName(name);
-    return existing ? updateFile(existing.id, content, mimeType) : createFile(name, content, mimeType);
-  }
-
-  return { init, login, isConnected, writeOrUpdateFile };
+  return { init, isReady, isConnected, ensureToken, deconnecter, writeFile };
 })();

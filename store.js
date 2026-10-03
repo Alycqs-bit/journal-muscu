@@ -1,275 +1,394 @@
-/* Données de départ extraites des vraies séances Drive (11/08, 29/07 BM ; 13/08, 17/07 HM).
-   Duree_min absente des notes sources -> laissee a null plutot qu'inventee (R1). */
+/* Stockage et calculs. Deux sources d'archives :
+   - HISTORIQUE (historique.js) : séances importées, en lecture seule ;
+   - le stockage du navigateur (localStorage) : séances enregistrées par l'app.
+   La séance en cours est sauvegardée à chaque action (C7) : un rechargement de l'onglet ne perd rien. */
 
-const SEED_LIBRARY = {
-  gastro_smith: { id: "gastro_smith", nom: "Gastrocnémiens Smith machine", groupe: "mollets", type_mesure: "reps_charge", charge_inversee: false, reglages: "lent, 1\" iso", cible_series: 4, cible_reps: [8, 10], repos_sec: 105, consignes: "éliminer le coup de cul" },
-  soleaire: { id: "soleaire", nom: "Soléaire", groupe: "mollets", type_mesure: "reps_charge", charge_inversee: false, reglages: "lent 1\" iso (variante : 2\" exc / 1\" pause / 1\" conc)", cible_series: 4, cible_reps: [15, 20], repos_sec: 105, consignes: "" },
-  hip_thrust: { id: "hip_thrust", nom: "Hip Thrust", groupe: "fessiers", type_mesure: "reps_charge", charge_inversee: false, reglages: "2\" iso", cible_series: 4, cible_reps: [8, 12], repos_sec: 105, consignes: "" },
-  leg_curl: { id: "leg_curl", nom: "Leg Curl couché", groupe: "ischios", type_mesure: "reps_charge", charge_inversee: false, reglages: "boudin 3", cible_series: 4, cible_reps: [10, 12], repos_sec: 90, consignes: "" },
-  presse_45: { id: "presse_45", nom: "Presse 45°", groupe: "quadriceps", type_mesure: "reps_charge", charge_inversee: false, reglages: "charge lourde", cible_series: 4, cible_reps: [5, 8], repos_sec: 165, consignes: "souvent sautée mi-2026 (neuro/saison course) — surveiller si le motif revient ≥3 fois" },
-  leg_ext: { id: "leg_ext", nom: "Leg Extension", groupe: "quadriceps", type_mesure: "reps_charge", charge_inversee: false, reglages: "siège 4, boudin bas 5, freinage excentrique 4\"", cible_series: 4, cible_reps: [8, 10], repos_sec: 90, consignes: "" },
-  abducteurs: { id: "abducteurs", nom: "Abducteurs", groupe: "hanches", type_mesure: "reps_charge", charge_inversee: false, reglages: "1\" iso", cible_series: 3, cible_reps: [12, 15], repos_sec: 75, consignes: "" },
-  adducteurs: { id: "adducteurs", nom: "Adducteurs", groupe: "hanches", type_mesure: "reps_charge", charge_inversee: false, reglages: "réglage 7, 1\" iso", cible_series: 3, cible_reps: [12, 15], repos_sec: 75, consignes: "" },
-  tirage_horizontal: { id: "tirage_horizontal", nom: "Tirage horizontal (poulie basse)", groupe: "dos", type_mesure: "reps_charge", charge_inversee: false, reglages: "", cible_series: 2, cible_reps: [8, 12], repos_sec: 90, consignes: "passé à 2 séries, on ne vise pas la progression" },
-  tractions_assistees: { id: "tractions_assistees", nom: "Tractions assistées", groupe: "dos", type_mesure: "reps_charge", charge_inversee: true, reglages: "", cible_series: 2, cible_reps: [8, 12], repos_sec: 90, consignes: "charge inversée : baisser la charge = progresser" },
-  developpe_militaire: { id: "developpe_militaire", nom: "Développé militaire (overhead press)", groupe: "épaules", type_mesure: "reps_charge", charge_inversee: false, reglages: "", cible_series: 2, cible_reps: [8, 12], repos_sec: 90, consignes: "" },
-  triceps_poulie: { id: "triceps_poulie", nom: "Extensions triceps poulie haute", groupe: "triceps", type_mesure: "reps_charge", charge_inversee: false, reglages: "", cible_series: 3, cible_reps: [10, 15], repos_sec: 75, consignes: "" },
-  hammer_strength: { id: "hammer_strength", nom: "Hammer Strength", groupe: "pectoraux", type_mesure: "reps_charge", charge_inversee: false, reglages: "", cible_series: 3, cible_reps: [10, 15], repos_sec: 60, consignes: "" },
-  pallof_press: { id: "pallof_press", nom: "Pallof press debout", groupe: "tronc", type_mesure: "reps_charge", charge_inversee: false, reglages: "stabilité rotatoire, niveau 22", cible_series: 3, cible_reps: [10, 12], repos_sec: 60, consignes: "reps comptées par côté" },
-  dead_hang: { id: "dead_hang", nom: "Dead hang", groupe: "poigne", type_mesure: "temps", charge_inversee: false, reglages: "", cible_series: 3, repos_sec: 45, consignes: "objectif : tenir le plus longtemps possible" },
-  farmers: { id: "farmers", nom: "Farmer's walk", groupe: "poigne", type_mesure: "temps_charge", charge_inversee: false, reglages: "", cible_series: 3, cible_temps_sec: 45, repos_sec: 45, consignes: "durée fixe 45\" par série, la charge tenue (kg) est ce qu'on fait progresser" },
-  curl_wrist: { id: "curl_wrist", nom: "Curl wrist", groupe: "avant-bras", type_mesure: "reps_charge", charge_inversee: false, reglages: "", cible_series: 2, cible_reps: [20, 20], repos_sec: 30, consignes: "" },
-  curl_wrist_reverse: { id: "curl_wrist_reverse", nom: "Curl wrist reverse", groupe: "avant-bras", type_mesure: "reps_charge", charge_inversee: false, reglages: "", cible_series: 2, cible_reps: [20, 20], repos_sec: 30, consignes: "" },
-  corde_a_sauter: { id: "corde_a_sauter", nom: "Pliométrie mollets (corde à sauter)", groupe: "mollets", type_mesure: "duree_libre", charge_inversee: false, reglages: "", cible_series: 3, cible_temps_sec: 30, repos_sec: 90, consignes: "apparue une fois (17/07), pas systématique — disponible en bibliothèque au besoin" },
+const LS_KEYS = {
+  archives: "muscu:archives_app",
+  live: "muscu:seance_live",
+  outbox: "muscu:outbox",
 };
 
-const SEED_PROGRAMME = {
-  BM: {
-    id: "BM", nom: "Bas du corps + mollets", version: 7, date_maj: "2026-08-11",
-    blocs: [
-      { titre: "Mollets", exos: ["gastro_smith", "soleaire"] },
-      { titre: "Chaîne principale", exos: ["hip_thrust", "leg_curl", "presse_45", "leg_ext"] },
-      { titre: "Hanches", exos: ["abducteurs", "adducteurs"] },
-      { titre: "Poigne A", exos: ["dead_hang", "farmers", "curl_wrist", "curl_wrist_reverse"] },
-    ],
-    echauffement: "Cardio 3-5' · PAP 1er exo : 10@50% / 5@75% / 2@90% · autres : 4-6 @60-70%",
-  },
-  HM: {
-    id: "HM", nom: "Haut du corps + mollets", version: 1, date_maj: "2026-08-13",
-    blocs: [
-      { titre: "Mollets", exos: ["gastro_smith", "soleaire"] },
-      { titre: "Push / Dos", exos: ["tirage_horizontal", "tractions_assistees", "developpe_militaire", "triceps_poulie", "hammer_strength"] },
-      { titre: "Tronc", exos: ["pallof_press"] },
-      { titre: "Poigne B", exos: ["dead_hang", "farmers", "curl_wrist", "curl_wrist_reverse"] },
-    ],
-    echauffement: "Cardio 3-5' · PAP 1er exo : 10@50% / 5@75% / 2@90% · autres : 4-6 @60-70%",
-  },
-};
-
-const SEED_ARCHIVES = [
-  {
-    id: "2026-07-29-BM", date: "2026-07-29", modele: "BM", version_programme: null, duree_min: null,
-    commentaire_seance: "séance chill avant le Montagnon", tags: ["avant_course"],
-    exos: [
-      { exo_id: "gastro_smith", statut: "fait", series: [{ reps: 8, charge: 55 }, { reps: 8, charge: 55 }], commentaire: "2 séries seulement, prépa Montagnon" },
-      { exo_id: "soleaire", statut: "fait", series: [{ reps: 15, charge: 25 }, { reps: 15, charge: 25 }], commentaire: "" },
-      { exo_id: "hip_thrust", statut: "fait", series: [{ reps: 10, charge: 45 }, { reps: 10, charge: 45 }], commentaire: "chill" },
-      { exo_id: "leg_curl", statut: "fait", series: [{ reps: 10, charge: 37.5 }, { reps: 10, charge: 37.5 }], commentaire: "chill" },
-      { exo_id: "presse_45", statut: "saute", series: [], commentaire: "supprimée pour l'été, neuro au repos, seul exo qu'il survolait" },
-      { exo_id: "leg_ext", statut: "fait", series: [{ reps: 8, charge: 42.5 }, { reps: 8, charge: 42.5 }], commentaire: "chill" },
-      { exo_id: "abducteurs", statut: "fait", series: [{ reps: 12, charge: 35 }, { reps: 12, charge: 35 }], commentaire: "chill" },
-      { exo_id: "adducteurs", statut: "fait", series: [{ reps: 13, charge: 37.5 }, { reps: 13, charge: 37.5 }], commentaire: "chill" },
-      { exo_id: "dead_hang", statut: "fait", series: [{ duree_sec: 120 }, { duree_sec: 60 }, { duree_sec: 43 }], commentaire: "objectif max" },
-      { exo_id: "farmers", statut: "fait", series: [{ charge: 26 }, { charge: 26 }, { charge: 26 }], commentaire: "" },
-      { exo_id: "curl_wrist", statut: "fait", series: [{ reps: 20, charge: 4 }, { reps: 20, charge: 4 }], commentaire: "" },
-      { exo_id: "curl_wrist_reverse", statut: "fait", series: [{ reps: 20, charge: 3 }, { reps: 20, charge: 3 }], commentaire: "" },
-    ],
-  },
-  {
-    id: "2026-08-11-BM", date: "2026-08-11", modele: "BM", version_programme: 7, duree_min: null,
-    commentaire_seance: "séance chill avant le Montagnon", tags: ["avant_course"],
-    exos: [
-      { exo_id: "gastro_smith", statut: "fait", series: [{ reps: 8, charge: 55 }, { reps: 8, charge: 55 }, { reps: 8, charge: 55 }, { reps: 8, charge: 55 }], commentaire: "" },
-      { exo_id: "soleaire", statut: "fait", series: [{ reps: 15, charge: 25 }, { reps: 15, charge: 25 }, { reps: 15, charge: 20 }, { reps: 15, charge: 20 }], commentaire: "peut-être rester à 20kg pour valider les 20 reps" },
-      { exo_id: "hip_thrust", statut: "fait", series: [{ reps: 10, charge: 45 }, { reps: 10, charge: 45 }, { reps: 10, charge: 40 }], commentaire: "avait oublié être passé à 2 séries en saison de course" },
-      { exo_id: "leg_curl", statut: "fait", series: [{ reps: 12, charge: 37.5 }, { reps: 12, charge: 37.5 }], commentaire: "" },
-      { exo_id: "presse_45", statut: "saute", series: [], commentaire: "supprimée pour l'été" },
-      { exo_id: "leg_ext", statut: "fait", series: [{ reps: 10, charge: 42.5 }, { reps: 10, charge: 42.5 }], commentaire: "" },
-      { exo_id: "abducteurs", statut: "partiel", series: [{ reps: 12, charge: 35 }], commentaire: "douleurs bizarres, pas en forme — arrêt avant la 2e série par précaution" },
-      { exo_id: "adducteurs", statut: "fait", series: [{ reps: 12, charge: 35 }, { reps: 12, charge: 35 }], commentaire: "baisse de charge volontaire, pas en forme" },
-      { exo_id: "dead_hang", statut: "fait", series: [{ duree_sec: 90 }, { duree_sec: 60 }, { duree_sec: 60 }], commentaire: "pas du tout envie ce jour-là" },
-      { exo_id: "farmers", statut: "saute", series: [], commentaire: "flemme" },
-      { exo_id: "curl_wrist", statut: "fait", series: [{ reps: 20, charge: 4 }, { reps: 20, charge: 4 }], commentaire: "" },
-      { exo_id: "curl_wrist_reverse", statut: "fait", series: [{ reps: 20, charge: 3 }, { reps: 20, charge: 3 }], commentaire: "" },
-    ],
-  },
-  {
-    id: "2026-07-17-HM", date: "2026-07-17", modele: "HM", version_programme: null, duree_min: null,
-    commentaire_seance: "", tags: [],
-    exos: [
-      { exo_id: "gastro_smith", statut: "fait", series: [{ reps: 9, charge: 55 }, { reps: 9, charge: 55 }, { reps: 9, charge: 55 }, { reps: 9, charge: 55 }], commentaire: "essayer d'éliminer le coup de cul" },
-      { exo_id: "soleaire", statut: "fait", series: [{ reps: 16, charge: 25 }, { reps: 17, charge: 25 }, { reps: 17, charge: 25 }, { reps: 17, charge: 25 }], commentaire: "" },
-      { exo_id: "tirage_horizontal", statut: "fait", series: [{ reps: 12, charge: 55 }, { reps: 9, charge: 55 }], commentaire: "tenue difficile en fin de série, redescendre à 50kg si ça persiste" },
-      { exo_id: "tractions_assistees", statut: "fait", series: [{ reps: 12, charge: 28 }, { reps: 12, charge: 28 }], commentaire: "tester la progression à 21kg la prochaine fois" },
-      { exo_id: "developpe_militaire", statut: "fait", series: [{ reps: 12, charge: 16 }, { reps: 12, charge: 16 }], commentaire: "" },
-      { exo_id: "triceps_poulie", statut: "fait", series: [{ reps: 12, charge: 15 }, { reps: 14, charge: 15 }], commentaire: "" },
-      { exo_id: "hammer_strength", statut: "fait", series: [{ reps: 15, charge: 10 }, { reps: 15, charge: 10 }], commentaire: "" },
-      { exo_id: "pallof_press", statut: "fait", series: [{ charge: 15 }, { charge: 15 }], commentaire: "reps par côté non notées précisément ce jour-là" },
-      { exo_id: "dead_hang", statut: "fait", series: [{ duree_sec: 90 }, { duree_sec: 60 }, { duree_sec: 60 }], commentaire: "" },
-      { exo_id: "farmers", statut: "saute", series: [], commentaire: "pas le temps" },
-      { exo_id: "curl_wrist", statut: "fait", series: [{ reps: 20, charge: 5 }, { reps: 20, charge: 5 }], commentaire: "" },
-      { exo_id: "curl_wrist_reverse", statut: "fait", series: [{ reps: 20, charge: 3 }, { reps: 20, charge: 3 }], commentaire: "" },
-    ],
-  },
-  {
-    id: "2026-08-13-HM", date: "2026-08-13", modele: "HM", version_programme: 1, duree_min: null,
-    commentaire_seance: "", tags: [],
-    exos: [
-      { exo_id: "gastro_smith", statut: "fait", series: [{ reps: 8, charge: 55 }, { reps: 8, charge: 55 }, { reps: 8, charge: 55 }, { reps: 8, charge: 55 }], commentaire: "chill" },
-      { exo_id: "soleaire", statut: "fait", series: [{ reps: 17, charge: 20 }, { reps: 17, charge: 20 }, { reps: 15, charge: 20 }, { reps: 15, charge: 20 }], commentaire: "" },
-      { exo_id: "tirage_horizontal", statut: "fait", series: [{ reps: 10, charge: 55 }, { reps: 10, charge: 55 }], commentaire: "mieux, bonne sensation dos" },
-      { exo_id: "tractions_assistees", statut: "fait", series: [{ reps: 12, charge: 28 }, { reps: 12, charge: 28 }], commentaire: "tester la progression à 21kg la prochaine fois" },
-      { exo_id: "developpe_militaire", statut: "fait", series: [{ reps: 12, charge: 16 }, { reps: 12, charge: 16 }], commentaire: "difficile" },
-      { exo_id: "triceps_poulie", statut: "fait", series: [{ reps: 12, charge: 15 }, { reps: 12, charge: 15 }], commentaire: "difficile" },
-      { exo_id: "hammer_strength", statut: "saute", series: [], commentaire: "pas le temps" },
-      { exo_id: "pallof_press", statut: "saute", series: [], commentaire: "pas le temps" },
-      { exo_id: "dead_hang", statut: "fait", series: [{ duree_sec: 75 }, { duree_sec: 75 }, { duree_sec: 38 }], commentaire: "explosion en fin de série" },
-      { exo_id: "farmers", statut: "saute", series: [], commentaire: "pas le temps" },
-      { exo_id: "curl_wrist", statut: "saute", series: [], commentaire: "pas le temps" },
-      { exo_id: "curl_wrist_reverse", statut: "saute", series: [], commentaire: "pas le temps" },
-    ],
-  },
-];
-
-const LS_KEYS = { archives: "muscu:archives", live: "muscu:seance_live" };
-
-function loadArchives() {
-  const raw = localStorage.getItem(LS_KEYS.archives);
-  return raw ? JSON.parse(raw) : SEED_ARCHIVES.slice();
+function lsGet(key, fallback) {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : fallback;
+  } catch (err) {
+    return fallback;
+  }
 }
 
-function saveArchives(archives) {
-  localStorage.setItem(LS_KEYS.archives, JSON.stringify(archives));
+function lsSet(key, value) {
+  try { localStorage.setItem(key, JSON.stringify(value)); } catch (err) { console.error("localStorage :", err); }
+}
+
+function localDate() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+/* Fourchette [min, max] quel que soit le format d'origine (les anciens exos ont des nombres seuls). */
+function range(v) {
+  if (v == null) return null;
+  return Array.isArray(v) ? v : [v, v];
+}
+
+function formatRange(r, fmt) {
+  if (!r) return "";
+  return r[0] === r[1] ? fmt(r[0]) : `${fmt(r[0])}-${fmt(r[1])}`;
 }
 
 const Store = {
-  getBibliotheque() {
-    return SEED_LIBRARY;
-  },
+  /* ---------- Programme ---------- */
   getExo(id) {
-    return SEED_LIBRARY[id];
+    const exo = LIBRARY[id];
+    if (!exo) return { id, nom: id, type_mesure: "reps_charge", inconnu: true };
+    return Object.assign({ id, unite: "kg", pas_charge: [1, 2.5] }, exo);
   },
   getModele(id) {
-    return SEED_PROGRAMME[id];
+    return PROGRAMME[id] || { id, nom: id, blocs: [] };
+  },
+  getModelesActifs() {
+    return Object.values(PROGRAMME).filter((m) => m.actif);
+  },
+
+  /* ---------- Archives ---------- */
+  getArchivesApp() {
+    return lsGet(LS_KEYS.archives, []);
   },
   getArchives() {
-    return loadArchives().sort((a, b) => (a.date < b.date ? 1 : -1));
+    const byId = {};
+    for (const a of HISTORIQUE) byId[a.id] = a;
+    for (const a of this.getArchivesApp()) byId[a.id] = a;
+    /* Plus récent d'abord. Même jour : l'id le plus long/grand passe devant (2e séance du jour = « …-12345 »). */
+    return Object.values(byId).sort((a, b) => (a.date !== b.date ? (a.date < b.date ? 1 : -1) : a.id < b.id ? 1 : a.id > b.id ? -1 : 0));
+  },
+  getArchive(id) {
+    return this.getArchives().find((a) => a.id === id) || null;
   },
   getDerniereArchive() {
-    const archives = this.getArchives();
-    return archives.length ? archives[0] : null;
+    return this.getArchives()[0] || null;
   },
-  prochainModele() {
-    const derniere = this.getDerniereArchive();
-    if (!derniere) return "BM";
-    return derniere.modele === "BM" ? "HM" : "BM";
-  },
-  getPerfPassee(exoId, avantDate) {
-    const archives = this.getArchives().filter((a) => !avantDate || a.date < avantDate);
-    for (const arch of archives) {
-      const entry = arch.exos.find((e) => e.exo_id === exoId && (e.statut === "fait" || e.statut === "partiel"));
-      if (entry && entry.series.length) return { date: arch.date, series: entry.series };
+
+  /* Dernière fois que cet exo a été fait (séries de travail présentes). Avec « archive » : seulement
+     les séances antérieures à celle-ci (pour le résumé). Sans : toutes (la séance en cours n'est pas encore archivée). */
+  getPerfPassee(exoId, archive) {
+    const liste = this.getArchives();
+    const debut = archive ? liste.findIndex((a) => a.id === archive.id) + 1 : 0;
+    for (const arch of liste.slice(debut)) {
+      const entry = arch.exos.find((x) => x.exo_id === exoId);
+      if (entry && seriesTravail(entry.series).length) return { date: arch.date, entry };
     }
     return null;
   },
-  getRecord(exoId) {
+
+  /* Toutes les fois où l'exo apparaît, du plus récent au plus ancien (écran historique). */
+  getHistoriqueExo(exoId) {
+    const out = [];
+    for (const arch of this.getArchives()) {
+      const entry = arch.exos.find((x) => x.exo_id === exoId);
+      if (entry) out.push({ date: arch.date, archive: arch, entry });
+    }
+    return out;
+  },
+
+  getExosAvecHistorique() {
+    const ids = new Set();
+    for (const arch of this.getArchives()) for (const x of arch.exos) ids.add(x.exo_id);
+    return [...ids];
+  },
+
+  /* Record série : meilleure série de travail isolée. */
+  getRecordSerie(exoId) {
     const exo = this.getExo(exoId);
-    const archives = this.getArchives();
     let best = null;
-    for (const arch of archives) {
-      const entry = arch.exos.find((e) => e.exo_id === exoId && (e.statut === "fait" || e.statut === "partiel"));
+    for (const arch of this.getArchives().reverse()) {
+      const entry = arch.exos.find((x) => x.exo_id === exoId);
       if (!entry) continue;
-      for (const s of entry.series) {
-        if (!best) { best = s; continue; }
-        best = isBetterSet(exo, s, best) ? s : best;
+      for (const s of seriesTravail(entry.series)) {
+        if (!best || isBetterSet(exo, s, best.serie)) best = { serie: s, date: arch.date };
       }
     }
     return best;
   },
+
+  /* Record total séance : meilleur total sur une séance (tonnage, temps cumulé ou reps cumulées). */
+  getRecordSeance(exoId) {
+    const exo = this.getExo(exoId);
+    let best = null;
+    for (const arch of this.getArchives().reverse()) {
+      const entry = arch.exos.find((x) => x.exo_id === exoId);
+      if (!entry) continue;
+      const t = totalSeance(exo, entry.series);
+      if (t != null && t > 0 && (!best || t > best.total)) best = { total: t, date: arch.date };
+    }
+    return best;
+  },
+
+  /* Dernière variante utilisée parmi une liste (pour présélectionner la bonne à la maison / en salle). */
+  derniereVariante(variantes) {
+    for (const arch of this.getArchives()) {
+      const hit = arch.exos.find((x) => variantes.includes(x.exo_id) && seriesTravail(x.series).length);
+      if (hit) return hit.exo_id;
+    }
+    return variantes[0];
+  },
+
+  /* Nombre de fois où l'exo a été sauté sur les dernières séances du même modèle (signal programme, §4). */
+  nbSautsRecents(exoId, modeleId, n = 5) {
+    const recentes = this.getArchives().filter((a) => a.modele === modeleId).slice(0, n);
+    return recentes.filter((a) => a.exos.some((x) => x.exo_id === exoId && x.statut === "saute")).length;
+  },
+
+  /* ---------- Séance en cours ---------- */
   demarrerSeance(modeleId) {
     const modele = this.getModele(modeleId);
-    const today = new Date().toISOString().slice(0, 10);
+    const date = localDate();
+    const exos = [];
+    for (const bloc of modele.blocs) {
+      for (const slot of bloc.slots) {
+        const variantes = typeof slot === "string" ? null : slot.variantes;
+        exos.push({
+          bloc: bloc.titre,
+          variantes,
+          exo_id: variantes ? this.derniereVariante(variantes) : slot,
+          statut: "a_faire",
+          series: [],
+          commentaire: "",
+          raison: null,
+        });
+      }
+    }
     const live = {
-      id: `${today}-${modeleId}`,
-      date: today,
+      id: `${date}-${modeleId}`,
+      date,
       modele: modeleId,
       version_programme: modele.version,
       debut_ts: Date.now(),
       commentaire_seance: "",
       tags: [],
-      blocs: modele.blocs.map((b) => ({
-        titre: b.titre,
-        exos: b.exos.map((exoId, i) => ({ exo_id: exoId, statut: "a_faire", ordre_reel: i, series: [], commentaire: "" })),
-      })),
+      exos,
+      repos: null,
+      reposEnAttente: null,
     };
     this.saveSeanceLive(live);
     return live;
   },
   getSeanceLive() {
-    const raw = localStorage.getItem(LS_KEYS.live);
-    return raw ? JSON.parse(raw) : null;
+    return lsGet(LS_KEYS.live, null);
   },
-  saveSeanceLive(seance) {
-    localStorage.setItem(LS_KEYS.live, JSON.stringify(seance));
+  saveSeanceLive(live) {
+    lsSet(LS_KEYS.live, live);
   },
-  clearSeanceLive() {
+  abandonnerSeance() {
     localStorage.removeItem(LS_KEYS.live);
   },
-  finaliserSeance(commentaire, tags) {
-    const live = this.getSeanceLive();
-    if (!live) return null;
-    const dureeMin = Math.round((Date.now() - live.debut_ts) / 60000);
+
+  finaliserSeance(live) {
     const archive = {
       id: live.id,
       date: live.date,
       modele: live.modele,
       version_programme: live.version_programme,
-      duree_min: dureeMin,
-      commentaire_seance: commentaire,
-      tags,
-      exos: live.blocs.flatMap((b) =>
-        b.exos.map((e) => ({ exo_id: e.exo_id, statut: e.statut === "a_faire" ? "saute" : e.statut, series: e.series, commentaire: e.commentaire }))
-      ),
+      duree_min: Math.round((Date.now() - live.debut_ts) / 60000),
+      commentaire_seance: live.commentaire_seance || "",
+      tags: live.tags || [],
+      exos: live.exos.map((x, i) => {
+        const exo = this.getExo(x.exo_id);
+        const series = x.series.map(cleanSerie);
+        return {
+          exo_id: x.exo_id,
+          bloc: x.bloc,
+          ordre: i,
+          statut: statutExo(exo, x),
+          raison: x.raison || null,
+          series,
+          commentaire: x.commentaire || "",
+        };
+      }),
     };
-    const archives = loadArchives();
+    /* Deux séances le même jour avec le même modèle : on n'écrase pas la première. */
+    const archives = this.getArchivesApp();
+    if (this.getArchive(archive.id)) archive.id = `${archive.id}-${Date.now() % 100000}`;
     archives.push(archive);
-    saveArchives(archives);
-    this.clearSeanceLive();
+    lsSet(LS_KEYS.archives, archives);
+    this.ajouterOutbox(archive.id);
+    this.abandonnerSeance();
     return archive;
+  },
+
+  /* ---------- File d'attente Drive ---------- */
+  getOutbox() {
+    return lsGet(LS_KEYS.outbox, []);
+  },
+  ajouterOutbox(id) {
+    const box = this.getOutbox();
+    if (!box.includes(id)) box.push(id);
+    lsSet(LS_KEYS.outbox, box);
+  },
+  retirerOutbox(id) {
+    lsSet(LS_KEYS.outbox, this.getOutbox().filter((x) => x !== id));
   },
 };
 
-function isBetterSet(exo, candidate, current) {
-  if (exo.type_mesure === "temps") {
-    return (candidate.duree_sec || 0) > (current.duree_sec || 0);
-  }
-  if (exo.type_mesure === "temps_charge") {
-    return (candidate.charge || 0) > (current.charge || 0);
-  }
-  if (exo.charge_inversee) {
-    return (candidate.charge ?? Infinity) < (current.charge ?? Infinity);
-  }
-  return (candidate.charge || 0) > (current.charge || 0) || ((candidate.charge || 0) === (current.charge || 0) && (candidate.reps || 0) > (current.reps || 0));
+/* ---------- Calculs sur les séries ---------- */
+
+function seriesTravail(series) {
+  return (series || []).filter((s) => !s.echauffement);
 }
 
-function formatSeries(exo, series) {
-  if (!series || !series.length) return "—";
-  if (exo.type_mesure === "temps") {
-    return series.map((s) => formatDuree(s.duree_sec)).join("/");
+/* On retire les champs de travail de l'interface (préfixés _) avant d'archiver. */
+function cleanSerie(s) {
+  const out = {};
+  for (const k of Object.keys(s)) if (!k.startsWith("_") && s[k] != null && s[k] !== "") out[k] = s[k];
+  return out;
+}
+
+function statutExo(exo, x) {
+  const travail = seriesTravail(x.series);
+  if (!travail.length) return "saute";
+  const cible = range(exo.cible_series);
+  if (!cible) return "fait";
+  const n = exo.unilateral
+    ? Math.min(travail.filter((s) => s.cote === "G").length, travail.filter((s) => s.cote === "D").length)
+    : travail.length;
+  return n < cible[0] ? "partiel" : "fait";
+}
+
+/* Le tonnage (Σ) n'a de sens qu'en kg sur reps_charge, hors charge inversée (R4, R2). */
+function compteDansTonnage(exo) {
+  return exo.type_mesure === "reps_charge" && (exo.unite || "kg") === "kg" && !exo.charge_inversee;
+}
+
+function sigma(exo, series) {
+  if (!compteDansTonnage(exo)) return null;
+  return seriesTravail(series).reduce((t, s) => t + (s.reps || 0) * (s.charge || 0), 0);
+}
+
+/* Total séance selon le type de mesure (record total séance, §2.5). */
+function totalSeance(exo, series) {
+  const travail = seriesTravail(series);
+  if (!travail.length) return null;
+  if (compteDansTonnage(exo)) return sigma(exo, series);
+  if (exo.type_mesure === "temps" || exo.type_mesure === "temps_charge") return travail.reduce((t, s) => t + (s.duree_sec || 0), 0);
+  if (exo.type_mesure === "reps_seules") return travail.reduce((t, s) => t + (s.reps || 0), 0);
+  return null;
+}
+
+function formatTotal(exo, total) {
+  if (total == null) return "—";
+  if (compteDansTonnage(exo)) return `Σ ${total} kg`;
+  if (exo.type_mesure === "temps" || exo.type_mesure === "temps_charge") return `${formatDuree(total)} cumulés`;
+  if (exo.type_mesure === "reps_seules") return `${total} reps cumulées`;
+  return String(total);
+}
+
+/* Total d'une séance, avec le détail par côté pour les unilatéraux en kg : « Σ 1200 kg (G 600 · D 600) ». */
+function formatTotalDe(exo, series) {
+  const total = totalSeance(exo, series);
+  if (total == null) return "—";
+  let txt = formatTotal(exo, total);
+  if (exo.unilateral && compteDansTonnage(exo)) {
+    const parCote = ["G", "D"].map((c) => `${c} ${sigma(exo, series.filter((s) => s.cote === c))}`);
+    txt += ` (${parCote.join(" · ")})`;
   }
+  return txt;
+}
+
+function isBetterSet(exo, a, b) {
+  if (exo.type_mesure === "temps") return (a.duree_sec || 0) > (b.duree_sec || 0);
   if (exo.type_mesure === "temps_charge") {
-    const groups = groupIdentical(series.map((s) => `${s.charge}kg`));
-    return groups.join(" / ");
+    if ((a.charge || 0) !== (b.charge || 0)) return (a.charge || 0) > (b.charge || 0);
+    return (a.duree_sec || 0) > (b.duree_sec || 0);
   }
-  const groups = groupIdentical(series.map((s) => (s.reps != null ? `${s.reps}x${s.charge}kg` : `${s.charge}kg`)));
-  return groups.join(" / ");
+  if (exo.type_mesure === "reps_seules") return (a.reps || 0) > (b.reps || 0);
+  if (exo.charge_inversee) {
+    const ca = a.charge ?? Infinity, cb = b.charge ?? Infinity;
+    return ca < cb || (ca === cb && (a.reps || 0) > (b.reps || 0));
+  }
+  const ca = a.charge || 0, cb = b.charge || 0;
+  return ca > cb || (ca === cb && (a.reps || 0) > (b.reps || 0));
+}
+
+/* ---------- Mise en forme ---------- */
+
+function fmtNum(n) {
+  return String(n).replace(".", ",");
+}
+
+function formatCharge(exo, charge) {
+  if (charge == null) return "";
+  return exo.unite && exo.unite !== "kg" ? `${exo.unite} ${fmtNum(charge)}` : `${fmtNum(charge)} kg`;
+}
+
+function formatDuree(sec) {
+  if (sec == null) return "—";
+  const neg = sec < 0;
+  const a = Math.abs(Math.round(sec));
+  const m = Math.floor(a / 60);
+  const s = a % 60;
+  const txt = m > 0 ? (s ? `${m}'${String(s).padStart(2, "0")}"` : `${m}'`) : `${s}"`;
+  return neg ? "−" + txt : txt;
+}
+
+/* Une série en texte court : « 6 × 80 kg », « 1'30" », « 28 kg × 30" ». */
+function formatSerie(exo, s) {
+  if (exo.type_mesure === "temps") return formatDuree(s.duree_sec);
+  if (exo.type_mesure === "temps_charge") {
+    return [s.charge != null ? formatCharge(exo, s.charge) : null, s.duree_sec != null ? formatDuree(s.duree_sec) : null].filter(Boolean).join(" × ") || "—";
+  }
+  if (exo.type_mesure === "reps_seules") return `${s.reps ?? "?"} reps`;
+  if (s.reps == null) return formatCharge(exo, s.charge);
+  return `${s.reps} × ${formatCharge(exo, s.charge)}`;
+}
+
+/* Séries de travail regroupées : « 3 × (6 × 80 kg) », par côté pour les unilatéraux. */
+function formatSeries(exo, series) {
+  const travail = seriesTravail(series);
+  if (!travail.length) return "—";
+  if (exo.unilateral && travail.some((s) => s.cote)) {
+    return ["G", "D"]
+      .map((c) => {
+        const cs = travail.filter((s) => s.cote === c);
+        return cs.length ? `${c} ${groupIdentical(cs.map((s) => formatSerie(exo, s))).join(" / ")}` : null;
+      })
+      .filter(Boolean)
+      .join(" · ");
+  }
+  return groupIdentical(travail.map((s) => formatSerie(exo, s))).join(" / ");
 }
 
 function groupIdentical(labels) {
   const out = [];
   let i = 0;
   while (i < labels.length) {
-    let count = 1;
-    while (i + count < labels.length && labels[i + count] === labels[i]) count++;
-    out.push(count > 1 ? `${count}x${labels[i]}` : labels[i]);
-    i += count;
+    let n = 1;
+    while (i + n < labels.length && labels[i + n] === labels[i]) n++;
+    out.push(n > 1 ? `${n} × (${labels[i]})` : labels[i]);
+    i += n;
   }
   return out;
 }
 
-function formatDuree(sec) {
-  if (sec == null) return "—";
-  const m = Math.floor(sec / 60);
-  const s = sec % 60;
-  return m > 0 ? `${m}'${String(s).padStart(2, "0")}"` : `${s}"`;
+function formatCible(exo) {
+  const parts = [];
+  const series = range(exo.cible_series);
+  const reps = range(exo.cible_reps);
+  const temps = range(exo.cible_temps_sec);
+  let dose = series ? formatRange(series, String) : "";
+  if (exo.type_mesure === "temps" || exo.type_mesure === "temps_charge") {
+    if (temps) dose += ` × ${formatRange(temps, formatDuree)}`;
+  } else if (reps) {
+    dose += ` × ${formatRange(reps, String)}`;
+  }
+  if (exo.unilateral) dose += " / côté";
+  if (dose) parts.push(dose);
+  const repos = range(exo.repos_sec);
+  if (repos) parts.push(`repos ${formatRange(repos, formatDuree)}`);
+  return parts.join(" · ");
+}
+
+/* Pour Node (tests) — sans effet dans le navigateur. */
+if (typeof module !== "undefined") {
+  module.exports = { Store, seriesTravail, statutExo, sigma, totalSeance, isBetterSet, formatSeries, formatSerie, formatCible, formatDuree, range };
 }
