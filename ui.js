@@ -835,6 +835,12 @@ function renderReposBar() {
     btn.textContent = "⏱ Série finie";
     return;
   }
+  /* Pré-sonnerie : un bip court 10 s avant le bas de la fourchette (repos assez longs seulement). */
+  if (st.cible && st.cible[0] > 20 && !live.repos.prebip && st.ecoule >= st.cible[0] - 10 && st.ecoule < st.cible[0]) {
+    live.repos.prebip = true;
+    save();
+    bip(1);
+  }
   if (dernierePhase === "decompte" && st.phase === "pret") bip(2);
   if (dernierePhase === "pret" && st.phase === "depasse") vibrer(400);
   dernierePhase = st.phase;
