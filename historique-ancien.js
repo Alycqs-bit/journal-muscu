@@ -49,7 +49,7 @@ const HISTORIQUE_ANCIEN = (() => {
       x("iso_soleaire", [{ charge: 40, duree_sec: 45 }, { charge: 60, duree_sec: 45 }]),
     ]),
     s("2026-03-26", "B", "", [
-      x("presse_45", [...p("e:@40 / e:@80 / e:@120 / e:@160"), ...p("3x8x200")], "noté « Presse » — supposée 45° (à confirmer)"),
+      x("presse_26mars", [...p("e:@40 / e:@80 / e:@120 / e:@160"), ...p("3x8x200")], "noté « Presse », type non précisé : gardé à part (Alix ne s'en souvient plus)"),
       x("leg_ext", p("2x8x35 / 8x40"), "siège avancé au max, boudin bas 5, boudin haut 1 ; 40 kg sans problème"),
       x("hip_thrust", p("10x20 / 10x25 / 8x25")),
       x("abducteurs", p("12x45 / 12x40"), "douleur bizarre à 45 kg, redescendu à 40 kg, difficilement"),
@@ -107,7 +107,7 @@ const HISTORIQUE_ANCIEN = (() => {
     ]),
     s("2026-04-07", "H", "« J'suis pas simple simple sur cette séance… j'en chie. C'est parce que je me suis envoyé fort aux jambes hier ? »", [
       x("tirage_horizontal", p("e:20x15 / 12x35 / 11x35 / 9x35 / 11x35")),
-      x("lat_pulldown", p("e:15x25 / 10x45 / 9x45 / 12x40 / 12x45"), "dernière série en mag grip, notée « 22 × 45 kg » le 07/04 mais « 12 × 45 kg » dans le rappel du 10/04 — 12 retenu, à confirmer"),
+      x("lat_pulldown", p("e:15x25 / 10x45 / 9x45 / 12x40 / 12x45"), "dernière série en mag grip, notée « 22 × 45 kg » le 07/04 mais 12 dans le rappel du 10/04 — 12 retenu (confirmé par Alix le 03/10)"),
       x("developpe_militaire", p("2x12x14 / 8x14")),
       x("triceps_poulie", p("11x15 / 13x12.5 / 9x12.5"), "j'en chie fort bizarrement à 15 kg"),
       x("hammer_strength", p("3x15x2.5"), "dernière série siège quasiment au plus bas, ça travaille mieux ; passage à 5 kg possible"),
@@ -231,7 +231,7 @@ const HISTORIQUE_ANCIEN = (() => {
       x("abducteurs", p("3x13x35")),
       x("adducteurs", p("3x13x37.5")),
     ]),
-    s("2026-05-08", "H", "⚠️ Fichier « 8 mai - H » dont le titre interne dit « 5 mai » (copier-coller) : daté au 8 mai d'après le nom du fichier, sa « perf. passée » reprenant le réalisé du 5 mai.", [
+    s("2026-05-08", "H", "Fichier « 8 mai - H » dont le titre interne dit « 5 mai » (copier-coller) : daté au 8 mai d'après le nom du fichier, sa « perf. passée » reprenant le réalisé du 5 mai.", [
       x("tirage_horizontal", p("4x8x55")),
       x("tractions_assistees", p("2x10x28 / 9x28 / 8x28")),
       x("developpe_militaire", p("11x16 / 8x16"), "placé en dernier + pas de dossier, régression normale"),
@@ -259,7 +259,7 @@ const HISTORIQUE_ANCIEN = (() => {
       x("presse_45", null, "cuisses détruites par le trail"),
       x("leg_ext", null, "cuisses détruites par le trail"),
       x("abducteurs", p("4x14x35")),
-      x("adducteurs", p("2x14x37.5 / r:11 / r:12"), "charge des 2 dernières séries non notée"),
+      x("adducteurs", p("2x14x37.5 / 11x37.5 / 12x37.5"), "charge des 2 dernières séries non notée, supposée identique (confirmé par Alix le 03/10)"),
     ]),
     s("2026-05-18", "B", "Presse en dernier et pas de leg extension : pas sûr d'avoir le temps, la presse c'est tout ce que j'ai pu faire.", [
       x("hip_thrust", p("3x8x50 / 10x50")),
@@ -288,7 +288,7 @@ const HISTORIQUE_ANCIEN = (() => {
       x("abducteurs", p("15x35 / 14x35 / 13x35")),
       x("adducteurs", p("2x14x37.5 / 10x37.5")),
     ], ["fatigue"]),
-    s("2026-05-24", "H", "⚠️ Fichier « 24 mai - H » dont le titre interne dit « 19 mai » (copier-coller) : daté au 24 mai d'après le nom du fichier, ses chiffres suivant ceux du 19. Dead hang : réalisé non noté.", [
+    s("2026-05-24", "H", "Fichier « 24 mai - H » dont le titre interne dit « 19 mai » (copier-coller) : daté au 24 mai d'après le nom du fichier, ses chiffres suivant ceux du 19. Dead hang : réalisé non noté.", [
       x("tirage_horizontal", p("4x11x55")),
       x("tractions_assistees", p("4x11x28")),
       x("developpe_militaire", p("3x8x18")),
@@ -309,8 +309,8 @@ const HISTORIQUE_ANCIEN = (() => {
       x("farmers", far("26/26/24")),
       curls(4, 3),
     ]),
-    s("2026-06-01", "B", "⚠️ Fichier « 1er juin - B » dont le titre interne dit « 29 mai » : daté au 1er juin d'après le nom du fichier (les deux sont possibles, à confirmer).", [
-      x("gastro_smith", p("4x15x20"), "1re fois ; on peut rester en fonction de comment ça évolue"),
+    s("2026-06-01", "B", "Fichier « 1er juin - B » dont le titre interne dit « 29 mai » : daté au 1er juin d'après le nom du fichier (confirmé par Alix le 03/10).", [
+      x("mollet_tendu_smith", p("4x15x20"), "1re fois ; on peut rester en fonction de comment ça évolue"),
       x("soleaire", p("15x20 / 3x15x10"), "très mauvaise exécution, compris la machine tardivement ; retenter 20 kg"),
       x("hip_thrust", p("2x10x50"), "on est bien, mais pourquoi pas 45 kg pour taper les 12 reps"),
       x("leg_curl", p("10x40 / 9x40"), "descendre à 37,5 kg pour allonger les reps et ménager le neuro ?"),
@@ -319,8 +319,8 @@ const HISTORIQUE_ANCIEN = (() => {
       x("abducteurs", p("2x15x35")),
       x("adducteurs", p("2x15x37.5")),
     ]),
-    s("2026-06-04", "H", "Le fichier note les mollets « pas faits le 3 juin » : date du 3 ou du 4 juin à confirmer, nom du fichier retenu.", [
-      x("gastro_smith", null, "mollets fracassés"),
+    s("2026-06-04", "H", "Le fichier note les mollets « pas faits le 3 juin » : nom du fichier retenu (confirmé par Alix le 03/10).", [
+      x("mollet_tendu_smith", null, "mollets fracassés"),
       x("soleaire", null, "mollets fracassés"),
       x("tirage_horizontal", p("2x12x55")),
       x("tractions_assistees", p("12x28 / 10x28")),
@@ -334,7 +334,7 @@ const HISTORIQUE_ANCIEN = (() => {
     ]),
     s("2026-06-09", "B", "", [
       x("plio_rebonds", [{ reps: 20 }, { reps: 20 }, { reps: 20 }], "rebonds rapides"),
-      x("gastro_smith", p("15x20 / 10x30 / 8x40 / 10x40"), "on peut essayer 50 kg la prochaine"),
+      x("mollet_tendu_smith", p("15x20 / 10x30 / 8x40 / 10x40"), "on peut essayer 50 kg la prochaine"),
       x("soleaire", p("10x20 / 9x25 / 2x10x25"), "on peut essayer 30 kg"),
       x("hip_thrust", p("2x12x45"), "nickel"),
       x("leg_curl", p("2x12x37.5"), "nickel"),
@@ -344,7 +344,7 @@ const HISTORIQUE_ANCIEN = (() => {
       x("adducteurs", p("2x15x37.5")),
     ]),
     s("2026-06-16", "H", "", [
-      x("gastro_smith", p("3x8x50 / 10x50")),
+      x("mollet_tendu_smith", p("3x8x50 / 10x50")),
       x("soleaire", p("4x8x30")),
       x("tirage_horizontal", p("2x12x55")),
       x("tractions_assistees", p("2x12x28")),
@@ -356,13 +356,15 @@ const HISTORIQUE_ANCIEN = (() => {
       x("farmers", far("28/26/26")),
       curls(4, 3),
     ]),
-    s("2026-06-18", "M", "Séance mollets + poigne. ⚠️ Gastro et soléaire non repris : le bloc est identique mot pour mot au 16/06 (perf. passée ET réalisé), probablement pas mis à jour — à confirmer.", [
+    s("2026-06-18", "M", "Séance mollets + poigne.", [
+      x("mollet_tendu_smith", p("3x8x50 / 10x50"), "valeurs identiques à la séance d'avant : charge inchangée (confirmé par Alix le 03/10)"),
+      x("soleaire", p("4x8x30"), "valeurs identiques à la séance d'avant : charge inchangée (confirmé par Alix le 03/10)"),
       x("dead_hang", dh("60/60/52"), "reprise de la marche en avant ; 1' de repos au lieu de 45\" à la 2e série"),
       x("farmers", far("28/28/28"), "à stabiliser sur une séance complète"),
       curls(4, 3, "on peut passer à 5/3"),
     ]),
     s("2026-06-22", "H", "", [
-      x("gastro_smith", p("4x10x50")),
+      x("mollet_tendu_smith", p("4x10x50")),
       x("soleaire", p("3x9x30 / 12x30")),
       x("tirage_horizontal", p("2x12x55")),
       x("tractions_assistees", p("2x12x28")),
@@ -374,13 +376,15 @@ const HISTORIQUE_ANCIEN = (() => {
       x("farmers", far("26/26/26"), "28 kg pas dispo, pas plus mal : pas pu plier la dernière"),
       curls(5, 3),
     ]),
-    s("2026-06-25", "M", "Séance mollets + poigne. ⚠️ Fichier « 25 juin - M » dont le titre interne dit « 18 juin » : daté au 25 juin d'après le nom. Farmer et curls non repris : identiques mot pour mot au 18/06, probablement pas mis à jour — à confirmer.", [
-      x("gastro_smith", p("4x8x60")),
+    s("2026-06-25", "M", "Séance mollets + poigne. Fichier « 25 juin - M » dont le titre interne dit « 18 juin » : daté au 25 juin d'après le nom (confirmé par Alix le 03/10).", [
+      x("mollet_tendu_smith", p("4x8x60")),
       x("soleaire", p("4x10x30")),
       x("dead_hang", dh("60/60/66"), "3 × 1' validé"),
+      x("farmers", far("28/28/28"), "valeurs identiques à la séance d'avant : charge inchangée (confirmé par Alix le 03/10)"),
+      curls(4, 3, "valeurs identiques à la séance d'avant : charge inchangée (confirmé par Alix le 03/10)"),
     ]),
     s("2026-07-09", "HM", "", [
-      x("gastro_smith", p("4x8x50"), "reprise chill"),
+      x("mollet_tendu_smith", p("4x8x50"), "reprise chill"),
       x("soleaire", p("4x8x30"), "reprise chill"),
       x("tirage_horizontal", p("12x55 / 10x55"), "réalisé en dernier par rapport à l'ordre habituel"),
       x("tractions_assistees", p("2x12x28")),
@@ -393,7 +397,7 @@ const HISTORIQUE_ANCIEN = (() => {
       curls(4, 3),
     ]),
     s("2026-07-15", "BM", "Séance de reprise : dur dur, plus d'un mois sans bas du corps (sauf mollets), sortie d'un ultra 160 km / 10 000 D+ il y a 10 jours.", [
-      x("gastro_smith", p("4x8x60"), "just just, obligé de mettre un coup de cul sur les dernières séries"),
+      x("mollet_tendu_smith", p("4x8x60"), "just just, obligé de mettre un coup de cul sur les dernières séries"),
       x("soleaire", p("4x8x35")),
       x("hip_thrust", p("2x12x45")),
       x("leg_curl", p("2x12x37.5")),
@@ -418,8 +422,8 @@ const HISTORIQUE_ANCIEN = (() => {
       x("farmers", far("26/26/24"), "j'en ai chié"),
       curls(4, 3, "à monter en 5/3"),
     ]),
-    s("2026-07-20", "BM", "⚠️ Fichier « 20 juillet - BM » dont le titre interne dit « 15 juillet » : daté au 20 juillet d'après le nom (sa perf. passée reprend le 17/07). Commentaire de séance identique au 15/07, non repris.", [
-      x("gastro_smith", p("4x8x55"), "essayer d'éliminer le coup de cul"),
+    s("2026-07-20", "BM", "Fichier « 20 juillet - BM » dont le titre interne dit « 15 juillet » : daté au 20 juillet d'après le nom (sa perf. passée reprend le 17/07). Commentaire de séance identique au 15/07, non repris.", [
+      x("mollet_tendu_smith", p("4x8x55"), "essayer d'éliminer le coup de cul"),
       x("soleaire", p("4x16x25")),
       x("hip_thrust", p("2x12x45")),
       x("leg_curl", p("2x12x37.5")),

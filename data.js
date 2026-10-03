@@ -30,7 +30,7 @@ const LIBRARY = {
     nom: "Mollet genou tendu — Smith, 2 jambes", groupe: "mollets", lieu: "salle",
     type_mesure: "reps_charge", reglages: "tempo 3-1-3-2",
     cible_series: [3, 4], cible_reps: [6, 8], repos_sec: [120, 180],
-    consignes: "Montée : 1 série proche du poids de travail (60×6).",
+    consignes: "Montée : 1 série proche du poids de travail (60×6). Historique avant septembre : ancien tempo (lent, 1\" iso).",
   },
   soleaire_barre: {
     nom: "Soléaire — barre sur les genoux", groupe: "mollets", lieu: "maison",
@@ -88,7 +88,6 @@ const LIBRARY = {
   },
 
   /* ---------- Ancien programme salle (historique uniquement) ---------- */
-  gastro_smith: { ancien: true, nom: "Gastrocnémiens Smith machine (ancien prog.)", groupe: "mollets", type_mesure: "reps_charge", reglages: "lent, 1\" iso", cible_series: 4, cible_reps: [8, 10], repos_sec: 105, consignes: "" },
   soleaire: { ancien: true, nom: "Soléaire (ancien prog.)", groupe: "mollets", type_mesure: "reps_charge", reglages: "", cible_series: 4, cible_reps: [15, 20], repos_sec: 105, consignes: "" },
   hip_thrust: { ancien: true, nom: "Hip Thrust", groupe: "fessiers", type_mesure: "reps_charge", reglages: "2\" iso", cible_series: 4, cible_reps: [8, 12], repos_sec: 105, consignes: "" },
   leg_curl: { ancien: true, nom: "Leg Curl couché", groupe: "ischios", type_mesure: "reps_charge", reglages: "boudin 3", cible_series: 4, cible_reps: [10, 12], repos_sec: 90, consignes: "" },
@@ -107,6 +106,7 @@ const LIBRARY = {
   curl_wrist: { ancien: true, nom: "Curl wrist", groupe: "avant-bras", type_mesure: "reps_charge", reglages: "", cible_series: 2, cible_reps: [20, 20], repos_sec: 30, consignes: "" },
   curl_wrist_reverse: { ancien: true, nom: "Curl wrist reverse", groupe: "avant-bras", type_mesure: "reps_charge", reglages: "", cible_series: 2, cible_reps: [20, 20], repos_sec: 30, consignes: "" },
   lat_pulldown: { ancien: true, nom: "Tirage vertical (lat pulldown)", groupe: "dos", type_mesure: "reps_charge", reglages: "mag grip moyen", cible_series: [3, 4], cible_reps: [8, 12], repos_sec: 90, consignes: "remplacé par les tractions assistées le 28/04" },
+  presse_26mars: { ancien: true, nom: "Presse (type non précisé, 26/03)", groupe: "quadriceps", type_mesure: "reps_charge", reglages: "", cible_series: 3, cible_reps: [8, 8], repos_sec: 165, consignes: "" },
   presse_horizontale: { ancien: true, nom: "Presse horizontale", groupe: "quadriceps", type_mesure: "reps_charge", reglages: "", cible_series: 4, cible_reps: [5, 8], repos_sec: 165, consignes: "début avril, avant la presse 45°" },
   leg_curl_24mars: { ancien: true, nom: "Leg curl (machine du 24/03, à confirmer)", groupe: "ischios", type_mesure: "reps_charge", reglages: "", cible_series: 4, cible_reps: [10, 10], repos_sec: 90, consignes: "55 kg, buste penché, mains sur le dossier : sans doute une autre machine que le leg curl couché" },
   iso_soleaire: { ancien: true, nom: "Isométrique soléaire", groupe: "mollets", type_mesure: "temps_charge", reglages: "", cible_series: 2, cible_temps_sec: 45, repos_sec: 90, consignes: "" },
@@ -137,7 +137,7 @@ const PROGRAMME = {
   BM: {
     id: "BM", nom: "Bas du corps + mollets (ancien)", actif: false, version: 7, date_maj: "2026-08-11",
     blocs: [
-      { titre: "Mollets", slots: ["gastro_smith", "soleaire"] },
+      { titre: "Mollets", slots: ["mollet_tendu_smith", "soleaire"] },
       { titre: "Chaîne principale", slots: ["hip_thrust", "leg_curl", "presse_45", "leg_ext"] },
       { titre: "Hanches", slots: ["abducteurs", "adducteurs"] },
       { titre: "Poigne A", slots: ["dead_hang", "farmers", "curl_wrist", "curl_wrist_reverse"] },
@@ -149,7 +149,7 @@ const PROGRAMME = {
   HM: {
     id: "HM", nom: "Haut du corps + mollets (ancien)", actif: false, version: 1, date_maj: "2026-08-13",
     blocs: [
-      { titre: "Mollets", slots: ["gastro_smith", "soleaire"] },
+      { titre: "Mollets", slots: ["mollet_tendu_smith", "soleaire"] },
       { titre: "Push / Dos", slots: ["tirage_horizontal", "tractions_assistees", "developpe_militaire", "triceps_poulie", "hammer_strength"] },
       { titre: "Tronc", slots: ["pallof_press"] },
       { titre: "Poigne B", slots: ["dead_hang", "farmers", "curl_wrist", "curl_wrist_reverse"] },

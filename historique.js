@@ -19,7 +19,7 @@ return [
     id: "2026-07-23-HM", date: "2026-07-23", modele: "HM", version_programme: null, duree_min: null,
     commentaire_seance: "⚠️ Fichier « 23 juillet - HM » dont le titre interne dit « 17 juillet » (copier-coller) : séance distincte du 17/07, sa perf. passée reprenant le 20/07. Blocs haut du corps identiques au 17/07 sauf triceps (copie possible non mise à jour).", tags: [],
     exos: [
-      { exo_id: "gastro_smith", statut: "fait", series: [w(9, 55), w(9, 55), w(9, 55), w(9, 55)], commentaire: "essayer d'éliminer le coup de cul" },
+      { exo_id: "mollet_tendu_smith", statut: "fait", series: [w(9, 55), w(9, 55), w(9, 55), w(9, 55)], commentaire: "essayer d'éliminer le coup de cul" },
       { exo_id: "soleaire", statut: "fait", series: [w(16, 25), w(17, 25), w(17, 25), w(17, 25)], commentaire: "" },
       { exo_id: "tirage_horizontal", statut: "fait", series: [w(12, 55), w(9, 55)], commentaire: "tenue difficile en fin de série, redescendre à 50kg si ça persiste" },
       { exo_id: "tractions_assistees", statut: "fait", series: [w(12, 28), w(12, 28)], commentaire: "tester la progression à 21kg la prochaine fois" },
@@ -37,7 +37,7 @@ return [
     id: "2026-07-29-BM", date: "2026-07-29", modele: "BM", version_programme: null, duree_min: null,
     commentaire_seance: "séance chill avant le Montagnon", tags: ["avant_course"],
     exos: [
-      { exo_id: "gastro_smith", statut: "fait", series: [w(8, 55), w(8, 55)], commentaire: "2 séries seulement, prépa Montagnon" },
+      { exo_id: "mollet_tendu_smith", statut: "fait", series: [w(8, 55), w(8, 55)], commentaire: "2 séries seulement, prépa Montagnon" },
       { exo_id: "soleaire", statut: "fait", series: [w(15, 25), w(15, 25)], commentaire: "" },
       { exo_id: "hip_thrust", statut: "fait", series: [w(10, 45), w(10, 45)], commentaire: "chill" },
       { exo_id: "leg_curl", statut: "fait", series: [w(10, 37.5), w(10, 37.5)], commentaire: "chill" },
@@ -55,7 +55,7 @@ return [
     id: "2026-08-11-BM", date: "2026-08-11", modele: "BM", version_programme: 7, duree_min: null,
     commentaire_seance: "séance chill avant le Montagnon", tags: ["avant_course"],
     exos: [
-      { exo_id: "gastro_smith", statut: "fait", series: [w(8, 55), w(8, 55), w(8, 55), w(8, 55)], commentaire: "" },
+      { exo_id: "mollet_tendu_smith", statut: "fait", series: [w(8, 55), w(8, 55), w(8, 55), w(8, 55)], commentaire: "" },
       { exo_id: "soleaire", statut: "fait", series: [w(15, 25), w(15, 25), w(15, 20), w(15, 20)], commentaire: "peut-être rester à 20kg pour valider les 20 reps" },
       { exo_id: "hip_thrust", statut: "fait", series: [w(10, 45), w(10, 45), w(10, 40)], commentaire: "avait oublié être passé à 2 séries en saison de course" },
       { exo_id: "leg_curl", statut: "fait", series: [w(12, 37.5), w(12, 37.5)], commentaire: "" },
@@ -73,7 +73,7 @@ return [
     id: "2026-08-13-HM", date: "2026-08-13", modele: "HM", version_programme: 1, duree_min: null,
     commentaire_seance: "", tags: [],
     exos: [
-      { exo_id: "gastro_smith", statut: "fait", series: [w(8, 55), w(8, 55), w(8, 55), w(8, 55)], commentaire: "chill" },
+      { exo_id: "mollet_tendu_smith", statut: "fait", series: [w(8, 55), w(8, 55), w(8, 55), w(8, 55)], commentaire: "chill" },
       { exo_id: "soleaire", statut: "fait", series: [w(17, 20), w(17, 20), w(15, 20), w(15, 20)], commentaire: "" },
       { exo_id: "tirage_horizontal", statut: "fait", series: [w(10, 55), w(10, 55)], commentaire: "mieux, bonne sensation dos" },
       { exo_id: "tractions_assistees", statut: "fait", series: [w(12, 28), w(12, 28)], commentaire: "tester la progression à 21kg la prochaine fois" },
