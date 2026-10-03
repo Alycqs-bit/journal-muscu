@@ -182,6 +182,25 @@ function renderAccueil() {
       status));
   }
 
+  const statusSync = h("p", { class: "muted small" });
+  els.push(h("button", {
+    class: "btn-ghost small-btn",
+    onclick: async (ev) => {
+      ev.target.disabled = true;
+      try {
+        await DriveAuth.ensureToken();
+        await retirerDeDrive((msg) => { statusSync.textContent = msg; });
+        const avant = Store.getArchivesApp().length;
+        await envoyerOutbox((msg) => { statusSync.textContent = msg; });
+        const recuperees = Store.getArchivesApp().length - avant;
+        statusSync.textContent = recuperees > 0 ? `✅ ${recuperees} séance(s) récupérée(s) depuis Drive.` : "✅ Tout est à jour avec Drive.";
+        setTimeout(() => { if (vue === "accueil") renderAccueil(); }, 1800);
+      } catch (err) {
+        statusSync.textContent = "Échec : " + err.message;
+        ev.target.disabled = false;
+      }
+    },
+  }, "🔄 Synchroniser avec Drive"), statusSync);
   els.push(h("div", { class: "row" },
     h("button", { class: "btn-secondary", onclick: () => allerA(renderHistoriqueSeances) }, "📅 Historique par séance"),
     h("button", { class: "btn-secondary", onclick: () => allerA(renderHistorique) }, "📈 Historique par exercice")));

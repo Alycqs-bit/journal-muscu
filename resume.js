@@ -125,11 +125,27 @@ function buildExoMarkdown(exoId) {
   return L.join("\n");
 }
 
+/* Sauvegarde complète écrite dans Drive : toutes les séances + la liste des séances supprimées. */
+function sauvegardeComplete() {
+  return JSON.stringify({ format: 2, archives: Store.getArchives(), supprimees: Store.getSupprimees() }, null, 1);
+}
+
+/* Relit la sauvegarde de Drive et la fusionne avec ce que connaît ce téléphone. Renvoie les séances récupérées. */
+async function synchroniserDepuisDrive(onProgress) {
+  if (onProgress) onProgress("Lecture de la sauvegarde Drive…");
+  const txt = await DriveAuth.readFile("journal-muscu-archives.json");
+  if (!txt) return [];
+  let contenu;
+  try { contenu = JSON.parse(txt); } catch (err) { throw new Error("sauvegarde Drive illisible"); }
+  return Store.fusionnerDrive(contenu);
+}
+
 /* Répercute dans Drive les séances supprimées : fichier de séance à la corbeille, fichiers d'exercices,
    « dernière séance » et sauvegarde complète réécrits sans elles. */
 async function retirerDeDrive(onProgress) {
   const aRetirer = lsGet("muscu:a_retirer", []);
   if (!aRetirer.length) return 0;
+  await synchroniserDepuisDrive(onProgress);
   const exos = new Set();
   for (const r of aRetirer) {
     if (onProgress) onProgress("Suppression du fichier de séance…");
@@ -143,7 +159,7 @@ async function retirerDeDrive(onProgress) {
   }
   const derniere = Store.getDerniereArchive();
   if (derniere) await DriveAuth.writeFile("journal-muscu-derniere-seance.md", buildResumeMarkdown(derniere));
-  await DriveAuth.writeFile("journal-muscu-archives.json", JSON.stringify(Store.getArchives(), null, 1), "application/json");
+  await DriveAuth.writeFile("journal-muscu-archives.json", sauvegardeComplete(), "application/json");
   lsSet("muscu:a_retirer", []);
   return aRetirer.length;
 }
@@ -152,15 +168,18 @@ async function retirerDeDrive(onProgress) {
    réécrit simplement les mêmes fichiers. Au tout premier envoi, on génère aussi les fichiers de
    tous les exercices de l'historique importé. */
 async function envoyerOutbox(onProgress) {
+  /* D'abord récupérer ce que Drive connaît et que ce téléphone ignore, pour ne jamais l'écraser. */
+  const recuperees = await synchroniserDepuisDrive(onProgress);
   const premierEnvoi = !lsGet("muscu:drive_init", false);
   /* Une fois : un fichier par séance pour tout l'historique (importé compris), pas seulement les nouvelles. */
   const historiqueSeances = !lsGet("muscu:drive_seances_init_v2", false);
   const ids = historiqueSeances
     ? [...new Set([...Store.getArchives().map((a) => a.id), ...Store.getOutbox()])]
     : Store.getOutbox();
-  if (!ids.length && !premierEnvoi) return 0;
+  if (!ids.length && !premierEnvoi && !recuperees.length) return 0;
   const derniere = Store.getDerniereArchive();
   const exosTouches = new Set(premierEnvoi ? Store.getExosAvecHistorique() : []);
+  recuperees.forEach((a) => a.exos.forEach((x) => exosTouches.add(x.exo_id)));
   const envoyes = [];
   for (const id of ids) {
     const archive = Store.getArchive(id);
@@ -178,7 +197,8 @@ async function envoyerOutbox(onProgress) {
     await DriveAuth.writeFile(`exo-${exoId}.md`, buildExoMarkdown(exoId));
   }
   if (onProgress) onProgress("Sauvegarde complète…");
-  await DriveAuth.writeFile("journal-muscu-archives.json", JSON.stringify(Store.getArchives(), null, 1), "application/json");
+  if (derniere && !ids.includes(derniere.id)) await DriveAuth.writeFile("journal-muscu-derniere-seance.md", buildResumeMarkdown(derniere));
+  await DriveAuth.writeFile("journal-muscu-archives.json", sauvegardeComplete(), "application/json");
   envoyes.forEach((id) => Store.retirerOutbox(id));
   lsSet("muscu:drive_init", true);
   lsSet("muscu:drive_seances_init_v2", true);

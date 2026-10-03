@@ -271,11 +271,34 @@ const Store = {
     if (!archive) return null;
     lsSet(LS_KEYS.archives, archives.filter((a) => a.id !== id));
     this.retirerOutbox(id);
+    const supprimees = this.getSupprimees();
+    if (!supprimees.includes(id)) supprimees.push(id);
+    lsSet("muscu:supprimees", supprimees);
     const aRetirer = lsGet("muscu:a_retirer", []);
     aRetirer.push({ id: archive.id, exos: archive.exos.map((x) => x.exo_id) });
     lsSet("muscu:a_retirer", aRetirer);
     return archive;
   },
+  getSupprimees() {
+    return lsGet("muscu:supprimees", []);
+  },
+
+  /* Fusionne la sauvegarde lue dans Drive : récupère les séances enregistrées ailleurs (autre appareil,
+     données du navigateur effacées) et applique les suppressions faites ailleurs. Renvoie les séances ajoutées. */
+  fusionnerDrive(contenu) {
+    const distant = Array.isArray(contenu) ? { archives: contenu, supprimees: [] } : contenu || {};
+    const importees = new Set([...HISTORIQUE_ANCIEN, ...HISTORIQUE].map((a) => a.id));
+    const supprimees = [...new Set([...this.getSupprimees(), ...(distant.supprimees || [])])];
+    lsSet("muscu:supprimees", supprimees);
+    const locales = this.getArchivesApp().filter((a) => !supprimees.includes(a.id));
+    const connues = new Set(locales.map((a) => a.id));
+    const ajoutees = (distant.archives || []).filter((a) => a && a.id && !importees.has(a.id) && !connues.has(a.id) && !supprimees.includes(a.id));
+    const toutes = [...locales, ...ajoutees].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+    lsSet(LS_KEYS.archives, toutes);
+    lsSet(LS_KEYS.outbox, this.getOutbox().filter((id) => !supprimees.includes(id)));
+    return ajoutees;
+  },
+
   estArchiveApp(id) {
     return this.getArchivesApp().some((a) => a.id === id);
   },
