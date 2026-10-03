@@ -124,16 +124,10 @@ function renderAccueil() {
 
   const der = Store.getDerniereArchive();
   if (der) {
-    const statusSuppr = h("p", { class: "muted small" });
-    els.push(h("section", { class: "card" },
-      h("p", { class: "label" }, "Dernière séance"),
-      h("p", null, `${dateFr(der.date)} — ${Store.getModele(der.modele).nom}${der.duree_min ? ` · ${der.duree_min} min` : ""}`),
-      resumeCourt(der),
-      Store.estArchiveApp(der.id) ? h("button", {
-        class: "btn-ghost small-btn",
-        onclick: (ev) => supprimerDerniere(der, ev.target, statusSuppr),
-      }, "🗑 Supprimer cette séance") : null,
-      statusSuppr));
+    els.push(h("button", { class: "card card-btn", onclick: () => allerA(() => renderSeanceDetail(der.id, renderAccueil)) },
+      h("span", { class: "label" }, "Dernière séance · voir le détail ›"),
+      h("span", null, `${dateFr(der.date)} — ${Store.getModele(der.modele).nom}${der.duree_min ? ` · ${der.duree_min} min` : ""}`),
+      resumeCourt(der)));
   }
 
   const aRetirer = lsGet("muscu:a_retirer", []);
@@ -188,12 +182,35 @@ function renderAccueil() {
       status));
   }
 
-  els.push(h("button", { class: "btn-secondary btn-block", onclick: () => allerA(renderHistorique) }, "📈 Historique par exercice"));
+  els.push(h("div", { class: "row" },
+    h("button", { class: "btn-secondary", onclick: () => allerA(renderHistoriqueSeances) }, "📅 Historique par séance"),
+    h("button", { class: "btn-secondary", onclick: () => allerA(renderHistorique) }, "📈 Historique par exercice")));
   monter(...els);
 }
 
-async function supprimerDerniere(archive, btn, status) {
-  if (!confirm(`Supprimer définitivement la séance du ${dateFr(archive.date)} ? Elle sera retirée du téléphone et de Drive (le fichier de séance part dans la corbeille Drive).`)) return;
+/* Bouton à double appui : le premier arme, le second (dans les 5 s) supprime. */
+function boutonSupprimer(archive) {
+  const status = h("p", { class: "muted small" });
+  let arme = false;
+  let minuteur = null;
+  const btn = h("button", {
+    class: "btn-ghost small-btn",
+    onclick: () => {
+      if (!arme) {
+        arme = true;
+        btn.textContent = "Appuie encore pour confirmer la suppression";
+        btn.className = "btn-danger small-btn";
+        minuteur = setTimeout(() => { arme = false; btn.textContent = "🗑 Supprimer cette séance"; btn.className = "btn-ghost small-btn"; }, 5000);
+        return;
+      }
+      clearTimeout(minuteur);
+      supprimerSeance(archive, btn, status);
+    },
+  }, "🗑 Supprimer cette séance");
+  return h("div", { class: "suppr" }, btn, status);
+}
+
+async function supprimerSeance(archive, btn, status) {
   btn.disabled = true;
   /* La fenêtre Google doit s'ouvrir tout de suite après le clic. */
   let erreurGoogle = null;
@@ -202,8 +219,8 @@ async function supprimerDerniere(archive, btn, status) {
   status.textContent = "Supprimée du téléphone. Mise à jour de Drive…";
   await google;
   if (erreurGoogle) {
-    status.textContent = `Supprimée du téléphone. Drive pas encore mis à jour (${erreurGoogle.message}).`;
-    setTimeout(renderAccueil, 2500);
+    status.textContent = `Supprimée du téléphone. Drive pas encore mis à jour (${erreurGoogle.message}) : réessaie depuis l'accueil.`;
+    setTimeout(renderAccueil, 3000);
     return;
   }
   try {
@@ -718,13 +735,59 @@ async function validerEtArchiver(btn) {
   }
 }
 
+/* ---------- Historique par séance ---------- */
+
+function renderHistoriqueSeances() {
+  vue = "historique";
+  const lignes = Store.getArchives().map((a) => h("button", { class: "list-row", onclick: () => renderSeanceDetail(a.id, renderHistoriqueSeances) },
+    h("span", null, `${dateFr(a.date)} — ${Store.getModele(a.modele).nom}${a.duree_min ? ` · ${a.duree_min} min` : ""}`),
+    resumeCourt(a)));
+  monter(
+    h("header", { class: "seance-head" }, h("h1", null, "Séances"), h("button", { class: "btn-ghost", onclick: retourAccueil }, "← Accueil")),
+    h("p", { class: "muted small" }, `${lignes.length} séances, de la plus récente à la plus ancienne.`),
+    lignes);
+}
+
+function renderSeanceDetail(id, retour) {
+  vue = "historique";
+  const a = Store.getArchive(id);
+  if (!a) return renderHistoriqueSeances();
+  const infos = [
+    a.duree_min ? `${a.duree_min} min` : null,
+    a.lieu ? (a.lieu === "maison" ? "à la maison" : "en salle") : null,
+    a.tags && a.tags.length ? "tags : " + a.tags.join(", ") : null,
+  ].filter(Boolean).join(" · ");
+  const exos = a.exos.map((x) => {
+    const exo = Store.getExo(x.exo_id);
+    const total = totalSeance(exo, x.series);
+    let n = 0;
+    return h("section", { class: "card hist" },
+      h("p", { class: "hist-head" }, h("strong", null, exo.nom),
+        h("span", { class: "badge " + (x.statut === "saute" ? "skip" : x.statut === "partiel" ? "partial" : "done") }, x.statut === "saute" ? "pas fait" : x.statut)),
+      x.statut === "saute"
+        ? h("p", { class: "muted" }, x.raison || x.commentaire || "")
+        : [h("p", null, h("strong", null, formatSeries(exo, x.series)), total != null ? ` · ${formatTotalDe(exo, x.series)}` : ""),
+           h("div", { class: "hist-detail" }, x.series.map((s) => h("p", { class: s.echauffement ? "ech" : "" }, (s.echauffement ? "éch. " : `${++n}. `) + detailSerie(exo, s)))),
+           x.commentaire ? h("p", { class: "note" }, "💬 " + x.commentaire) : null]);
+  });
+  monter(
+    h("header", { class: "seance-head" },
+      h("div", null, h("h1", null, dateFr(a.date)), h("p", { class: "muted" }, Store.getModele(a.modele).nom)),
+      h("button", { class: "btn-ghost", onclick: () => (retour === renderAccueil ? retourAccueil() : retour()) }, "← Retour")),
+    infos ? h("p", { class: "muted small" }, infos) : null,
+    a.commentaire_seance ? h("p", { class: "note" }, "💬 " + a.commentaire_seance) : null,
+    exos,
+    Store.estArchiveApp(a.id) ? boutonSupprimer(a) : null);
+  window.scrollTo(0, 0);
+}
+
 /* ---------- Historique par exercice ---------- */
 
 function renderHistorique() {
   vue = "historique";
   const actuels = [];
   for (const m of Store.getModelesActifs()) for (const b of m.blocs) for (const slot of b.slots) {
-    for (const id of typeof slot === "string" ? [slot] : slot.variantes) if (!actuels.includes(id)) actuels.push(id);
+    for (const id of typeof slot === "string" ? [slot] : slot.variantes || [slot.exo]) if (!actuels.includes(id)) actuels.push(id);
   }
   const autres = Store.getExosAvecHistorique().filter((id) => !actuels.includes(id));
   const ligne = (id) => {

@@ -58,11 +58,13 @@ const Store = {
   },
   getArchives() {
     const byId = {};
-    for (const a of HISTORIQUE_ANCIEN) byId[a.id] = a;
-    for (const a of HISTORIQUE) byId[a.id] = a;
-    for (const a of this.getArchivesApp()) byId[a.id] = a;
-    /* Plus récent d'abord. Même jour : l'id le plus long/grand passe devant (2e séance du jour = « …-12345 »). */
-    return Object.values(byId).sort((a, b) => (a.date !== b.date ? (a.date < b.date ? 1 : -1) : a.id < b.id ? 1 : a.id > b.id ? -1 : 0));
+    const rang = {};
+    for (const a of HISTORIQUE_ANCIEN) { byId[a.id] = a; rang[a.id] = 0; }
+    for (const a of HISTORIQUE) { byId[a.id] = a; rang[a.id] = 0; }
+    this.getArchivesApp().forEach((a, i) => { byId[a.id] = a; rang[a.id] = 1 + i; });
+    /* Plus récent d'abord. Même jour : une séance enregistrée par l'app passe devant l'historique importé,
+       et entre deux séances de l'app, la dernière enregistrée passe devant. */
+    return Object.values(byId).sort((a, b) => (a.date !== b.date ? (a.date < b.date ? 1 : -1) : rang[b.id] - rang[a.id]));
   },
   getArchive(id) {
     return this.getArchives().find((a) => a.id === id) || null;

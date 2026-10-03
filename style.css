@@ -246,3 +246,6 @@ details summary { color: var(--muted); cursor: pointer; }
 .rampe { font-size: 0.85rem; color: #fcd34d; }
 .icon-btn { font-size: 0.8rem; }
 .small-btn { font-size: 0.85rem; padding: 0.45rem 0.7rem; align-self: flex-start; }
+.card-btn { width: 100%; text-align: left; border: 1px solid var(--line); font-weight: 400; }
+.card-btn .label { color: #93c5fd; }
+.suppr { display: flex; flex-direction: column; gap: 0.4rem; margin-top: 0.5rem; }
