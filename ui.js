@@ -132,12 +132,15 @@ function renderAccueil() {
 
   const box = Store.getOutbox();
   const jamaisEnvoye = !lsGet("muscu:drive_init", false);
-  if (box.length || jamaisEnvoye) {
+  const seancesJamaisEnvoyees = !lsGet("muscu:drive_seances_init", false);
+  if (box.length || jamaisEnvoye || seancesJamaisEnvoyees) {
     const status = h("p", { class: "muted" });
     els.push(h("section", { class: "card warn" },
       h("p", null, box.length
         ? `${box.length} séance(s) pas encore envoyée(s) dans Drive.`
-        : "L'historique n'a pas encore été envoyé dans Drive (un fichier par exercice, pour les analyses)."),
+        : seancesJamaisEnvoyees && !jamaisEnvoye
+          ? `Il manque dans Drive un fichier par séance pour l'historique (${Store.getArchives().length} séances). À envoyer une fois.`
+          : "L'historique n'a pas encore été envoyé dans Drive (un fichier par séance et par exercice, pour les analyses)."),
       h("button", {
         class: "btn-secondary btn-block",
         onclick: async (ev) => {

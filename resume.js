@@ -127,8 +127,12 @@ function buildExoMarkdown(exoId) {
    réécrit simplement les mêmes fichiers. Au tout premier envoi, on génère aussi les fichiers de
    tous les exercices de l'historique importé. */
 async function envoyerOutbox(onProgress) {
-  const ids = Store.getOutbox();
   const premierEnvoi = !lsGet("muscu:drive_init", false);
+  /* Une fois : un fichier par séance pour tout l'historique (importé compris), pas seulement les nouvelles. */
+  const historiqueSeances = !lsGet("muscu:drive_seances_init", false);
+  const ids = historiqueSeances
+    ? [...new Set([...Store.getArchives().map((a) => a.id), ...Store.getOutbox()])]
+    : Store.getOutbox();
   if (!ids.length && !premierEnvoi) return 0;
   const derniere = Store.getDerniereArchive();
   const exosTouches = new Set(premierEnvoi ? Store.getExosAvecHistorique() : []);
@@ -152,5 +156,6 @@ async function envoyerOutbox(onProgress) {
   await DriveAuth.writeFile("journal-muscu-archives.json", JSON.stringify(Store.getArchives(), null, 1), "application/json");
   envoyes.forEach((id) => Store.retirerOutbox(id));
   lsSet("muscu:drive_init", true);
+  lsSet("muscu:drive_seances_init", true);
   return envoyes.length;
 }
