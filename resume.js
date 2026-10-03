@@ -137,6 +137,13 @@ async function synchroniserDepuisDrive(onProgress) {
   if (!txt) return [];
   let contenu;
   try { contenu = JSON.parse(txt); } catch (err) { throw new Error("sauvegarde Drive illisible"); }
+  /* Sauvegarde au format actuel : l'historique complet est déjà dans Drive (envoyé depuis un autre appareil
+     ou avant un effacement), inutile de le renvoyer depuis celui-ci. */
+  if (contenu && contenu.format === 2) {
+    lsSet("muscu:drive_init", true);
+    lsSet("muscu:drive_seances_init_v2", true);
+  }
+  lsSet("muscu:sync_init", true);
   return Store.fusionnerDrive(contenu);
 }
 

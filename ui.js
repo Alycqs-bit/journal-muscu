@@ -118,7 +118,13 @@ function renderAccueil() {
       h("p", { class: "label" }, "Démarrer une séance"),
       Store.getModelesActifs().map((m) => h("button", {
         class: "btn-primary btn-block",
-        onclick: () => { live = Store.demarrerSeance(m.id); ouvert = null; allerA(ouvrirSeance); },
+        onclick: () => {
+          /* Lancée en premier : sur un nouvel appareil, la fenêtre Google doit s'ouvrir dans la foulée du clic. */
+          synchroniserEnArrierePlan();
+          live = Store.demarrerSeance(m.id);
+          ouvert = null;
+          allerA(ouvrirSeance);
+        },
       }, m.nom))));
   }
 
@@ -205,6 +211,24 @@ function renderAccueil() {
     h("button", { class: "btn-secondary", onclick: () => allerA(renderHistoriqueSeances) }, "📅 Historique par séance"),
     h("button", { class: "btn-secondary", onclick: () => allerA(renderHistorique) }, "📈 Historique par exercice")));
   monter(...els);
+}
+
+/* Au démarrage d'une séance : récupère sans bloquer les séances connues de Drive (autre appareil,
+   données effacées). Silencieux : en cas d'échec, l'envoi de fin de séance resynchronisera de toute façon.
+   La fenêtre Google ne s'ouvre que sur un appareil qui ne s'est encore jamais synchronisé. */
+async function synchroniserEnArrierePlan() {
+  try {
+    if (!DriveAuth.isConnected()) {
+      if (lsGet("muscu:sync_init", false) || !DriveAuth.isReady()) return;
+      await DriveAuth.ensureToken();
+    }
+    const recuperees = await synchroniserDepuisDrive();
+    /* Réaffiche pour mettre à jour « dernière fois » et records, sauf si une saisie est en cours. */
+    const saisieEnCours = document.activeElement && ["INPUT", "TEXTAREA"].includes(document.activeElement.tagName);
+    if (recuperees.length && vue === "seance" && !saisieEnCours) renderSeance();
+  } catch (err) {
+    console.warn("Synchronisation en arrière-plan :", err.message);
+  }
 }
 
 /* Bouton à double appui : le premier arme, le second (dans les 5 s) supprime. */
