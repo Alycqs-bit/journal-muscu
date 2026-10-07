@@ -198,14 +198,16 @@ async function envoyerOutbox(onProgress) {
     archive.exos.forEach((x) => exosTouches.add(x.exo_id));
     envoyes.push(id);
   }
+  /* La sauvegarde complète passe juste après les séances, avant les fichiers par exercice : si l'envoi
+     est coupé en route (06/10 : arrêt après 4 fichiers d'exercice), le plus important est déjà dans Drive. */
+  if (onProgress) onProgress("Sauvegarde complète…");
+  if (derniere && !ids.includes(derniere.id)) await DriveAuth.writeFile("journal-muscu-derniere-seance.md", buildResumeMarkdown(derniere));
+  await DriveAuth.writeFile("journal-muscu-archives.json", sauvegardeComplete(), "application/json");
   let i = 0;
   for (const exoId of exosTouches) {
     if (onProgress) onProgress(`Fichiers par exercice… ${++i}/${exosTouches.size}`);
     await DriveAuth.writeFile(`exo-${exoId}.md`, buildExoMarkdown(exoId));
   }
-  if (onProgress) onProgress("Sauvegarde complète…");
-  if (derniere && !ids.includes(derniere.id)) await DriveAuth.writeFile("journal-muscu-derniere-seance.md", buildResumeMarkdown(derniere));
-  await DriveAuth.writeFile("journal-muscu-archives.json", sauvegardeComplete(), "application/json");
   envoyes.forEach((id) => Store.retirerOutbox(id));
   lsSet("muscu:drive_init", true);
   lsSet("muscu:drive_seances_init_v2", true);

@@ -66,9 +66,25 @@ const Repos = {
   },
 };
 
-/* Cible de repos après une série : entre les deux côtés (unilatéral, tour pas fini) ou entre les tours. */
+/* Repos après un échauffement (plan Trail, rampe de montée, proposition [P]) : ~45-60 s après une série
+   légère, ~60-90 s après la dernière, la plus proche du poids de travail. Jamais les 2-4 min du travail. */
+const REPOS_ECH_LEGER = [45, 60];
+const REPOS_ECH_DERNIER = [60, 90];
+
+/* Cible de repos après une série : échauffement, entre les deux côtés (unilatéral, tour pas fini) ou entre les tours. */
 function cibleRepos(exo, seriesApres) {
   if (!exo) return null;
+  const derniere = seriesApres[seriesApres.length - 1];
+  if (derniere && derniere.echauffement) {
+    const ech = seriesApres.filter((s) => s.echauffement);
+    if (exo.unilateral) {
+      const g = ech.filter((s) => s.cote === "G").length, d = ech.filter((s) => s.cote === "D").length;
+      if (g !== d) return exo.repos_cotes_sec ? range(exo.repos_cotes_sec) : null;
+    }
+    const prevues = (exo.rampe_series || []).length;
+    const faites = exo.unilateral ? ech.filter((s) => s.cote === derniere.cote).length : ech.length;
+    return faites < prevues ? REPOS_ECH_LEGER : REPOS_ECH_DERNIER;
+  }
   if (exo.unilateral) {
     const travail = seriesApres.filter((s) => !s.echauffement);
     const g = travail.filter((s) => s.cote === "G").length;
@@ -100,4 +116,4 @@ const Ecran = {
   },
 };
 
-if (typeof module !== "undefined") module.exports = { Repos, cibleRepos };
+if (typeof module !== "undefined") module.exports = { Repos, cibleRepos, REPOS_ECH_LEGER, REPOS_ECH_DERNIER };

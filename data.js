@@ -9,8 +9,12 @@
    - repos_cotes_sec : repos entre les deux côtés d'un exo unilatéral (null = on enchaîne)
    - lieu : "salle" / "maison" (info d'affichage, pour choisir la bonne variante)
    - premier_cote : côté par lequel commencer un exo unilatéral ("G" par défaut)
-   - saisie : champs proposés à la saisie parmi reps, charge, duree, rir, technique, echauffement
-     (absent = tous ceux qui ont un sens pour le type de mesure). La note de série est toujours proposée.
+   - saisie : champs proposés à la saisie parmi reps, charge, duree, rir, technique
+     (absent = tous ceux qui ont un sens pour le type de mesure). La note de série et la case
+     « Échauffement » sont toujours proposées, sur tous les exercices (demande d'Alix du 07/10).
+   - rampe_series : échauffements prévus, pré-remplis dans l'ordre avant la 1re série de travail
+     ({ reps, charge } ; une valeur absente = reprise de l'échauffement de la dernière fois).
+     Sur un unilatéral, la liste vaut pour chaque côté.
    - reps_fixes : on valide la série sans saisir les reps (= haut de la cible)
    - charge_lest : la charge est un lest ajouté au poids du corps ; 0 s'affiche « poids du corps »
    - ancien : true → exercice de l'ancien programme, gardé uniquement pour l'historique
@@ -49,26 +53,26 @@ const LIBRARY = {
     consignes: "Flexion puis saut vertical sur une jambe, puis sauts à cloche-pied en avançant. On recule d'un niveau si les mollets sont pris le lendemain matin, si une douleur dépasse 2/10 ou si le test du lundi baisse. Jamais dans les 48 h avant une séance de descente.",
   },
   mollet_tendu_uni_maison: {
-    saisie: ["reps", "charge", "rir", "technique", "echauffement"],
+    saisie: ["reps", "charge", "rir", "technique"],
     nom: "Mollet genou tendu — 1 jambe, escalier", groupe: "mollets", lieu: "maison", unilateral: true, premier_cote: "D", charge_lest: true,
     type_mesure: "reps_charge", reglages: "ceinture lestée + disques, une main au mur · tempo 3-1-3-2 (3 s montée, 1 s en haut, 3 s descente, 2 s en bas)",
-    rampe: "1 série plus légère par jambe avant les 3 séries de travail, pour monter en charge (cocher « Échauffement »)", rir_cible: "1-2",
+    rampe: "1 série plus légère par jambe avant les 3 séries de travail, pour monter en charge", rampe_series: [{}], rir_cible: "1-2",
     cible_series: [3, 3], cible_reps: [6, 8], repos_sec: null, repos_cotes_sec: null,
     consignes: "Charge = lest de la ceinture, hors poids du corps. Talon sous le niveau de la marche en bas, montée maximale en haut. Progression : quand les 3 séries passent à 8 reps à RIR 1, on alourdit et on repart à 6.",
   },
   mollet_tendu_uni_smith: {
-    saisie: ["reps", "charge", "rir", "technique", "echauffement"],
+    saisie: ["reps", "charge", "rir", "technique"],
     nom: "Mollet genou tendu — 1 jambe, Smith", groupe: "mollets", lieu: "salle", unilateral: true, premier_cote: "D",
     type_mesure: "reps_charge", reglages: "tempo 3-1-3-2 (3 s montée, 1 s en haut, 3 s descente, 2 s en bas)",
-    rampe: "1 série plus légère par jambe avant les 3 séries de travail, pour monter en charge (cocher « Échauffement »)", rir_cible: "1-2",
+    rampe: "1 série plus légère par jambe avant les 3 séries de travail, pour monter en charge", rampe_series: [{}], rir_cible: "1-2",
     cible_series: [3, 3], cible_reps: [6, 8], repos_sec: null, repos_cotes_sec: null,
     consignes: "Talon bas en bas, montée maximale en haut. Progression : quand les 3 séries passent à 8 reps à RIR 1, on alourdit et on repart à 6.",
   },
   mollet_tendu_smith: {
-    saisie: ["reps", "charge", "rir", "technique", "echauffement"],
+    saisie: ["reps", "charge", "rir", "technique"],
     nom: "Mollet genou tendu — Smith, 2 jambes", groupe: "mollets", lieu: "salle",
     type_mesure: "reps_charge", reglages: "tempo 3-1-3-2 (3 s montée, 1 s en haut, 3 s descente, 2 s en bas)",
-    rampe: "1 série plus légère avant les séries de travail (cocher « Échauffement »)", rir_cible: "1-2",
+    rampe: "1 série plus légère avant les séries de travail", rampe_series: [{}], rir_cible: "1-2",
     cible_series: [3, 4], cible_reps: [6, 8], repos_sec: [120, 180],
     consignes: "Repli si l'unilatéral est trop long. Progression : quand les 3 séries passent à 8 reps à RIR 1, on alourdit et on repart à 6.",
   },
@@ -96,18 +100,18 @@ const LIBRARY = {
     consignes: "Progression : quand les 3 séries passent à 8 reps à RIR 1, on alourdit et on repart à 6.",
   },
   squat: {
-    saisie: ["reps", "charge", "rir", "technique", "echauffement"],
+    saisie: ["reps", "charge", "rir", "technique"],
     nom: "Squat — barre", groupe: "quadriceps",
     type_mesure: "reps_charge", reglages: "descente contrôlée, montée explosive",
-    rampe: "20×10 → 40×6 → 70×4", rir_cible: "1-2",
+    rampe: "20×10 → 40×6 → 70×4", rampe_series: [{ reps: 10, charge: 20 }, { reps: 6, charge: 40 }, { reps: 4, charge: 70 }], rir_cible: "1-2",
     cible_series: [2, 2], cible_reps: [6, 8], repos_sec: [120, 240],
     consignes: "Progression : quand les 2 séries passent à 8 reps propres à RIR 1, +2,5 à 5 kg et on repart à 6.",
   },
   rdl: {
-    saisie: ["reps", "charge", "rir", "technique", "echauffement"],
+    saisie: ["reps", "charge", "rir", "technique"],
     nom: "RDL — barre", groupe: "ischios",
     type_mesure: "reps_charge", reglages: "descente contrôlée, montée explosive",
-    rampe: "1 série d'approche : 70×6", rir_cible: "1-2",
+    rampe: "1 série d'approche : 70×6", rampe_series: [{ reps: 6, charge: 70 }], rir_cible: "1-2",
     cible_series: [2, 2], cible_reps: [6, 8], repos_sec: [120, 240],
     consignes: "Progression : quand les 2 séries passent à 8 reps propres à RIR 1, +2,5 à 5 kg et on repart à 6.",
   },

@@ -7,6 +7,7 @@ let ouvert = null;      // index de l'exo déplié
 let edition = null;     // { idx, si } : série en cours de correction
 const flags = {};       // affichages temporaires par exo : { comment, saut, note, erreur }
 let dernierePhase = null;
+let commentSeanceOuvert = false;
 
 function $(id) { return document.getElementById(id); }
 
@@ -64,8 +65,10 @@ function toast(txt) {
   toast._t = setTimeout(() => el.classList.remove("show"), 2200);
 }
 
-/* Champs proposés pour un exercice (data.js « saisie »), sinon tous ceux qui ont un sens pour son type. */
+/* Champs proposés pour un exercice (data.js « saisie »), sinon tous ceux qui ont un sens pour son type.
+   L'échauffement est proposé partout. */
 function champ(exo, nom) {
+  if (nom === "echauffement") return true;
   if (exo.saisie) return exo.saisie.includes(nom);
   const t = exo.type_mesure;
   if (nom === "reps" || nom === "rir") return t === "reps_charge" || t === "reps_seules";
@@ -268,17 +271,21 @@ function renderAccueil() {
 
 /* Au démarrage d'une séance : récupère sans bloquer les séances connues de Drive (autre appareil,
    données effacées). Silencieux : en cas d'échec, l'envoi de fin de séance resynchronisera de toute façon.
-   La fenêtre Google ne s'ouvre que sur un appareil qui ne s'est encore jamais synchronisé. */
+   La fenêtre Google ne s'ouvre que sur un appareil jamais synchronisé ou si une séance attend d'être envoyée. */
 async function synchroniserEnArrierePlan() {
   try {
     if (!DriveAuth.isConnected()) {
-      if (lsGet("muscu:sync_init", false) || !DriveAuth.isReady()) return;
+      /* Fenêtre Google seulement sur un appareil jamais synchronisé, ou si une séance attend d'être envoyée. */
+      if (lsGet("muscu:sync_init", false) && !Store.getOutbox().length || !DriveAuth.isReady()) return;
       await DriveAuth.ensureToken();
     }
-    const recuperees = await synchroniserDepuisDrive();
+    /* Une séance précédente pas encore partie dans Drive (envoi coupé) : on en profite pour la renvoyer. */
+    const avant = Store.getArchivesApp().length;
+    if (Store.getOutbox().length) await envoyerOutbox();
+    else await synchroniserDepuisDrive();
     /* Réaffiche pour mettre à jour « dernière fois » et records, sauf si une saisie est en cours. */
     const saisieEnCours = document.activeElement && ["INPUT", "TEXTAREA"].includes(document.activeElement.tagName);
-    if (recuperees.length && vue === "seance" && !saisieEnCours) renderSeance();
+    if (Store.getArchivesApp().length > avant && vue === "seance" && !saisieEnCours) renderSeance();
   } catch (err) {
     console.warn("Synchronisation en arrière-plan :", err.message);
   }
@@ -358,6 +365,18 @@ function renderSeance() {
     if (x.bloc !== blocCourant) { blocCourant = x.bloc; els.push(h("h2", null, x.bloc)); }
     els.push(renderCarte(x, i));
   });
+  els.push(h("h2", null, "Séance entière"));
+  els.push(h("button", {
+    class: "btn-ghost btn-block" + (live.commentaire_seance ? " has" : ""),
+    onclick: () => { commentSeanceOuvert = !commentSeanceOuvert; renderSeance(); },
+  }, live.commentaire_seance ? "💬 Commentaire de séance ✓" : "💬 Commentaire de séance"));
+  if (commentSeanceOuvert || live.commentaire_seance) {
+    els.push(h("textarea", {
+      class: "comment-box", placeholder: "Commentaire sur toute la séance (forme, contexte, sensations…) — repris à la fin",
+      value: live.commentaire_seance || "",
+      oninput: (ev) => { live.commentaire_seance = ev.target.value; save(); },
+    }));
+  }
   els.push(h("button", { class: "btn-ghost btn-block", onclick: retourAccueil }, "← Accueil (la séance reste en cours)"));
   monter(...els);
 }
@@ -479,9 +498,14 @@ function renderListeSeries(x, i, exo) {
   let n = 0;
   x.series.forEach((s, si) => {
     const enEdition = edition && edition.idx === i && edition.si === si;
+    /* Série de travail sans RIR ou sans technique alors que l'exo les demande : marqué en rouge, à compléter d'un appui. */
+    const veutRir = !s.echauffement && champ(exo, "rir") && champ(exo, "reps") && !exo.reps_fixes;
+    const veutTech = !s.echauffement && champ(exo, "technique");
     const tags = [];
-    if (s.rir != null) tags.push(`RIR ${s.rir}`);
-    if (s.technique) tags.push(s.technique === "propre" ? "🟢" : "🟡");
+    if (s.rir != null) tags.push(`RIR ${s.rir}  `);
+    else if (veutRir) tags.push(h("span", { class: "manque" }, "RIR ?"), " ");
+    if (s.technique) tags.push(s.technique === "propre" ? "🟢  " : "🟡  ");
+    else if (veutTech) tags.push(h("span", { class: "manque rond", title: "Technique non notée" }, "?"), " ");
     if (s.repos_avant_sec != null) tags.push(`⏱ ${formatDuree(s.repos_avant_sec)}${s.repos_precision === "exact" ? "" : "~"}`);
     list.append(h("button", {
       class: "serie-row" + (s.echauffement ? " ech" : "") + (enEdition ? " editing" : ""),
@@ -492,24 +516,67 @@ function renderListeSeries(x, i, exo) {
     },
       h("span", { class: "num" }, s.echauffement ? "éch." : `${++n}`),
       h("span", { class: "main" }, (s.cote ? s.cote + " · " : "") + formatSerie(exo, s)),
-      h("span", { class: "tags" }, tags.join("  ")),
+      h("span", { class: "tags" }, tags),
       s.commentaire ? h("span", { class: "serie-note" }, "💬 " + s.commentaire) : null));
   });
   return list;
 }
 
-function defaultDraft(exo, x, avant) {
-  const last = x.series[x.series.length - 1];
-  const refAvant = avant ? seriesTravail(avant.entry.series)[0] : null;
-  const ref = last || refAvant || {};
+/* Valeurs proposées pour une série de travail : la dernière série de travail du jour, sinon la 1re de la dernière fois. */
+function valeursTravail(exo, x, avant) {
+  const travail = seriesTravail(x.series);
+  const ref = travail[travail.length - 1] || (avant ? seriesTravail(avant.entry.series)[0] : null) || {};
   const reps = range(exo.cible_reps), temps = range(exo.cible_temps_sec);
   return {
     reps: ref.reps ?? (reps ? reps[0] : null),
     charge: ref.charge ?? null,
     duree_sec: ref.duree_sec ?? (temps ? temps[0] : null),
-    cote: exo.unilateral ? (last && last.cote ? autreCote(last.cote) : exo.premier_cote || "G") : null,
-    rir: null, technique: null, echauffement: false, commentaire: "",
   };
+}
+
+/* Prochain échauffement prévu (data.js « rampe_series ») pour ce côté, ou null quand la rampe est faite
+   ou que les séries de travail ont commencé. Une valeur non chiffrée reprend l'échauffement de la dernière fois. */
+function etapeRampe(exo, x, avant, cote) {
+  const prevues = exo.rampe_series || [];
+  const duCote = (s) => !exo.unilateral || s.cote === cote;
+  const series = x.series.filter(duCote);
+  if (!prevues.length || series.some((s) => !s.echauffement)) return null;
+  const k = series.length;
+  if (k >= prevues.length) return null;
+  const etape = prevues[k];
+  const avantEch = avant ? avant.entry.series.filter((s) => s.echauffement && duCote(s)) : [];
+  const ref = avantEch[k] || {};
+  const travail = valeursTravail(exo, x, avant);
+  return {
+    reps: etape.reps ?? ref.reps ?? travail.reps,
+    charge: etape.charge ?? ref.charge ?? travail.charge,
+    duree_sec: etape.duree_sec ?? ref.duree_sec ?? travail.duree_sec,
+    numero: k + 1, total: prevues.length,
+  };
+}
+
+/* Brouillon de la prochaine série : échauffement prévu pré-rempli s'il en reste un, sinon série de travail. */
+function defaultDraft(exo, x, avant) {
+  const last = x.series[x.series.length - 1];
+  const cote = exo.unilateral ? (last && last.cote ? autreCote(last.cote) : exo.premier_cote || "G") : null;
+  const etape = etapeRampe(exo, x, avant, cote);
+  const v = etape || valeursTravail(exo, x, avant);
+  return {
+    reps: v.reps, charge: v.charge, duree_sec: v.duree_sec, cote,
+    rir: null, technique: null, echauffement: !!etape, rampe: !!etape, commentaire: "",
+  };
+}
+
+/* Cocher / décocher « Échauffement » remplace les valeurs pré-remplies par celles qui conviennent. */
+function basculerEchauffement(exo, x, d) {
+  const avant = Store.getPerfPassee(exo.id);
+  d.echauffement = !d.echauffement;
+  if (d.echauffement) {
+    const etape = etapeRampe(exo, x, avant, d.cote);
+    if (etape) Object.assign(d, { reps: etape.reps, charge: etape.charge, duree_sec: etape.duree_sec, rampe: true });
+  } else if (d.rampe) {
+    Object.assign(d, valeursTravail(exo, x, avant), { rampe: false });
+  }
 }
 
 function renderSaisie(x, i, exo, avant) {
@@ -525,15 +592,26 @@ function renderSaisie(x, i, exo, avant) {
     const cote = exo.unilateral ? (d.cote === "G" ? " · gauche" : " · droite") : "";
     const cible = range(exo.cible_series);
     const n = numeroSerie(exo, x, d.cote);
-    form.append(h("p", { class: "saisie-titre" }, d.echauffement
-      ? `À noter : échauffement${cote}`
+    const etape = d.echauffement ? etapeRampe(exo, x, avant, d.cote) : null;
+    form.append(h("p", { class: "saisie-titre" + (d.echauffement ? " ech" : "") }, d.echauffement
+      ? `À noter : échauffement${etape ? ` ${etape.numero} / ${etape.total} prévu${etape.total > 1 ? "s" : ""}` : ""}${cote}`
       : `À noter : série ${n}${cible ? " / " + cible[1] : ""}${cote}${exo.reps_fixes ? ` — ${range(exo.cible_reps)[1]} reps` : ""}`));
   }
 
   if (exo.unilateral) {
     form.append(h("div", { class: "seg" }, ["G", "D"].map((c) => h("button", {
       class: d.cote === c ? "selected" : "",
-      onclick: () => { d.cote = c; save(); renderSeance(); },
+      onclick: () => {
+        d.cote = c;
+        /* Changer de côté recale le pré-remplissage sur la rampe de ce côté-là. */
+        if (!enEdition) {
+          const etape = etapeRampe(exo, x, avant, c);
+          if (etape) Object.assign(d, { reps: etape.reps, charge: etape.charge, duree_sec: etape.duree_sec, echauffement: true, rampe: true });
+          else if (d.rampe) Object.assign(d, valeursTravail(exo, x, avant), { echauffement: false, rampe: false });
+        }
+        save();
+        renderSeance();
+      },
     }, c === "G" ? "Gauche" : "Droite"))));
   }
 
@@ -607,8 +685,15 @@ function renderSaisie(x, i, exo, avant) {
 
   const noteOuverte = f(i).note || d.commentaire;
   form.append(h("div", { class: "row" },
-    champ(exo, "echauffement") ? h("button", { class: "toggle" + (d.echauffement ? " on" : ""), onclick: () => { d.echauffement = !d.echauffement; save(); renderSeance(); } },
-      d.echauffement ? "☑ Échauffement" : "☐ Échauffement") : null,
+    h("button", {
+      class: "toggle" + (d.echauffement ? " on" : ""),
+      onclick: () => {
+        if (enEdition) d.echauffement = !d.echauffement;
+        else basculerEchauffement(exo, x, d);
+        save();
+        renderSeance();
+      },
+    }, d.echauffement ? "☑ Échauffement" : "☐ Échauffement"),
     h("button", { class: "toggle" + (noteOuverte ? " on" : ""), onclick: () => { f(i).note = !f(i).note; renderSeance(); } }, "💬 Note de série")));
   if (noteOuverte) {
     form.append(h("input", {
@@ -665,11 +750,7 @@ function validerSerie(x, i, exo) {
   x.series.push(serie);
   toast(`✓ ${serie.echauffement ? "Échauffement" : "Série " + numero}${serie.cote ? (serie.cote === "G" ? " gauche" : " droite") : ""} enregistré${serie.echauffement ? "" : "e"} : ${formatSerie(exo, serie)}`);
   if (x.statut === "saute") x.statut = "a_faire";
-  x._draft = {
-    reps: serie.reps ?? null, charge: serie.charge ?? null, duree_sec: serie.duree_sec ?? null,
-    cote: exo.unilateral ? autreCote(serie.cote) : null,
-    rir: null, technique: null, echauffement: false, commentaire: "",
-  };
+  x._draft = defaultDraft(exo, x, Store.getPerfPassee(exo.id));
   f(i).note = false;
   /* Superset : le meneur (mollet) reste ouvert, la ligne « à faire » du suiveur apparaît dans sa fiche ;
      une série notée depuis la fiche du suiveur ramène au meneur. */
@@ -796,7 +877,7 @@ function toggleEffort(x, i, exo, d) {
   if (live.effort && live.effort.idx === i) {
     d.duree_sec = Math.round((Date.now() - live.effort.start_ts) / 1000);
     live.effort = null;
-    Repos.serieFinie(live, cibleRepos(exo, [...x.series, { cote: d.cote }]));
+    Repos.serieFinie(live, cibleRepos(exo, [...x.series, { cote: d.cote, echauffement: d.echauffement }]));
     save();
     vibrer(30);
     validerSerie(x, i, exo);
@@ -828,6 +909,11 @@ function renderReposBar() {
   const st = Repos.etat(live);
   const temps = $("repos-temps"), sub = $("repos-sub"), btn = $("repos-btn");
   bar.className = "repos-bar " + (st ? st.phase : "idle");
+  /* Clignote le bouton qu'on risque d'oublier : « Je repars » une fois le repos minimum atteint,
+     puis « Série finie » pendant la série qui suit (jusqu'à l'appui ou la validation de la série).
+     Rien pendant le décompte du repos, ni pendant un chrono d'effort (corde), qui a son propre bouton. */
+  const clignote = st ? st.phase === "pret" || st.phase === "depasse" : !!live.reposEnAttente && !live.effort;
+  btn.classList.toggle("clignote", clignote);
   if (!st) {
     dernierePhase = null;
     temps.textContent = live.reposEnAttente ? formatDuree(live.reposEnAttente.sec) : "Repos";
