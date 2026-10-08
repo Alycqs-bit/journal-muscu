@@ -1,4 +1,4 @@
-/* Fichiers écrits dans Drive (cahier des charges §2.7 et §5), lus ensuite par Claude dans le projet Trail.
+/* Fichiers écrits dans Drive (cahier des charges §2.7 et §5), lus ensuite par Claude (compétence coach-muscu-alix, projet Trail).
    - journal-muscu-derniere-seance.md : la dernière séance (écrasé à chaque fois)
    - seance-AAAA-MM-JJ-MODELE.md     : une archive par séance
    - exo-<id>.md                      : tout l'historique d'un exercice, une ligne par date
@@ -75,7 +75,7 @@ function buildResumeMarkdown(archive) {
   L.push("", "## Détail série par série");
   for (const x of archive.exos) {
     const exo = Store.getExo(x.exo_id);
-    L.push("", `### ${exo.nom} — ${x.statut}`);
+    L.push("", `### ${exo.nom} — ${x.statut} · historique : \`exo-${x.exo_id}.md\``);
     if (!x.series.length) { L.push(`Pas fait${x.raison ? " : " + x.raison : ""}.`); continue; }
     let n = 0;
     for (const s of x.series) L.push(s.echauffement ? `- éch. ${detailSerie(exo, s)}` : `- ${++n}. ${detailSerie(exo, s)}`);
