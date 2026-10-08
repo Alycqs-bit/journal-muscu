@@ -269,3 +269,10 @@ details summary { color: var(--muted); cursor: pointer; }
 .serie-row .manque { color: #fff; background: var(--bad); font-weight: 700; border-radius: 6px; padding: 0 0.3rem; font-size: 0.75rem; }
 .serie-row .manque.rond { display: inline-flex; align-items: center; justify-content: center; width: 1.2rem; height: 1.2rem; padding: 0; border-radius: 50%; }
 .saisie-titre.ech { color: #fcd34d; }
+
+/* Consignes du coach (compétence coach-muscu-alix), lues dans la dernière analyse de force (08/10). */
+.coach-box { background: #1f1a3a; border: 1px solid #7c3aed; border-radius: 12px; padding: 0.7rem 0.8rem; display: flex; flex-direction: column; gap: 0.35rem; font-size: 0.92rem; }
+.coach-box .label { color: #c4b5fd; }
+.coach-box.old { border-color: var(--warn); }
+.warn-txt { color: #fcd34d; }
+.coach { font-size: 0.95rem; background: #1f1a3a; border-left: 3px solid #7c3aed; padding: 0.45rem 0.6rem; border-radius: 6px; }

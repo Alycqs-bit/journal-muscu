@@ -213,3 +213,59 @@ async function envoyerOutbox(onProgress) {
   lsSet("muscu:drive_seances_init_v2", true);
   return envoyes.length;
 }
+
+/* ---------- Consignes du coach (compétence coach-muscu-alix, 08/10/2026) ----------
+   À chaque « archive », la compétence écrit AAAA-MM-JJ-force.md dans Analyses > Daily > AAAA > AAAA-MM
+   (projet Trail), avec une section « ## Consignes app » : une ligne par exercice, « - <id> : texte »,
+   et « - seance : texte » pour une remarque générale. L'app lit la plus récente et la garde en mémoire. */
+
+const DOSSIER_DAILY_ID = "1b3T3GJphtJe9h8FI43NDcHJkWfbYwtjr"; // Analyses > Daily (projet Trail)
+const CONSIGNES_KEY = "muscu:consignes_coach";
+
+function parseConsignes(md) {
+  const lignes = String(md).split(/\r?\n/);
+  const debut = lignes.findIndex((l) => /^##\s+Consignes app\b/i.test(l.trim()));
+  if (debut < 0) return null;
+  const out = { general: [], exos: {} };
+  for (const l of lignes.slice(debut + 1)) {
+    if (/^#{1,2}\s/.test(l.trim())) break;
+    const m = l.match(/^\s*[-*]\s*`?([a-z0-9_]+)`?\s*:\s*(.+?)\s*$/i);
+    if (!m) continue;
+    const id = m[1].toLowerCase();
+    if (id === "seance") out.general.push(m[2]);
+    else out.exos[id] = out.exos[id] ? `${out.exos[id]} · ${m[2]}` : m[2];
+  }
+  return out.general.length || Object.keys(out.exos).length ? out : null;
+}
+
+/* « 2026-10-06-force-2.md » → { date: "2026-10-06", n: 2 } ; n = 1 sans suffixe. */
+function cleAnalyseForce(nom) {
+  const m = nom.match(/^(\d{4}-\d{2}-\d{2})-force(?:-(\d+))?\.md$/);
+  return m ? { date: m[1], n: m[2] ? Number(m[2]) : 1 } : null;
+}
+
+/* Cherche l'analyse de force la plus récente qui contient des consignes (mois en cours et précédent). */
+async function chargerConsignesCoach() {
+  const DOSSIER = "mimeType = 'application/vnd.google-apps.folder'";
+  const annees = (await DriveAuth.listerDossier(DOSSIER_DAILY_ID, DOSSIER))
+    .filter((d) => /^\d{4}$/.test(d.name)).sort((a, b) => b.name.localeCompare(a.name)).slice(0, 2);
+  let mois = [];
+  for (const a of annees) mois = mois.concat((await DriveAuth.listerDossier(a.id, DOSSIER)).filter((d) => /^\d{4}-\d{2}$/.test(d.name)));
+  mois = mois.sort((a, b) => b.name.localeCompare(a.name)).slice(0, 2);
+  let fichiers = [];
+  for (const m of mois) {
+    fichiers = fichiers.concat((await DriveAuth.listerDossier(m.id, "name contains 'force'"))
+      .map((f) => Object.assign({}, f, { cle: cleAnalyseForce(f.name) })).filter((f) => f.cle));
+  }
+  fichiers.sort((a, b) => b.cle.date.localeCompare(a.cle.date) || b.cle.n - a.cle.n);
+  for (const f of fichiers.slice(0, 6)) {
+    const consignes = parseConsignes(await DriveAuth.lireParId(f.id, f.mimeType));
+    if (!consignes) continue;
+    const res = Object.assign({ fichier: f.name, date_seance: f.cle.date, lu_le: Date.now() }, consignes);
+    lsSet(CONSIGNES_KEY, res);
+    return res;
+  }
+  return null;
+}
+
+function getConsignesCoach() { return lsGet(CONSIGNES_KEY, null); }

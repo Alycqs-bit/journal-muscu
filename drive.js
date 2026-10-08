@@ -2,11 +2,13 @@
 
    - Le jeton d'accès (valable ~1 h) est gardé dans le navigateur : un rechargement ne déconnecte plus (C6).
    - La séance elle-même n'a pas besoin de Google : on ne demande la connexion qu'au moment d'écrire.
-   - Autorisation « drive.file » : l'app ne voit QUE les fichiers qu'elle a créés. Elle range tout dans
-     son propre dossier « Journal Muscu (app) », qu'on peut déplacer où on veut dans Drive (C8). */
+   - Autorisation « drive.file » : l'app n'écrit QUE dans les fichiers qu'elle a créés. Elle range tout dans
+     son propre dossier « Journal Muscu (app) », qu'on peut déplacer où on veut dans Drive (C8).
+   - Autorisation « drive.readonly » (ajoutée le 08/10/2026, choix d'Alix) : lecture seule du reste du Drive,
+     pour lire les consignes du coach dans les analyses de force (dossier Analyses > Daily du projet Trail). */
 
 const CLIENT_ID = "68380651068-8sng7sm5q520vk581gvoeeve0m9hpmj3.apps.googleusercontent.com";
-const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file";
+const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.readonly";
 const DOSSIER_APP = "Journal Muscu (app)";
 const TOKEN_KEY = "muscu:google_token";
 
@@ -30,7 +32,7 @@ const DriveAuth = (() => {
           pending = null;
           if (!p) return;
           if (resp.error) return p.reject(new Error(resp.error));
-          lsSet(TOKEN_KEY, { access_token: resp.access_token, exp: Date.now() + (Number(resp.expires_in) || 3600) * 1000 });
+          lsSet(TOKEN_KEY, { access_token: resp.access_token, exp: Date.now() + (Number(resp.expires_in) || 3600) * 1000, scope: resp.scope || "" });
           p.resolve();
         },
         error_callback: (err) => {
@@ -45,7 +47,8 @@ const DriveAuth = (() => {
 
   function token() {
     const t = lsGet(TOKEN_KEY, null);
-    return t && t.exp > Date.now() + 60000 ? t.access_token : null;
+    /* Un jeton obtenu avant l'ajout de la lecture seule ne suffit plus : on en redemande un. */
+    return t && t.exp > Date.now() + 60000 && (t.scope || "").includes("drive.readonly") ? t.access_token : null;
   }
 
   function isReady() { return !!tokenClient; }
@@ -130,6 +133,23 @@ const DriveAuth = (() => {
     return res.text();
   }
 
+  /* Fichiers (ou dossiers) d'un dossier quelconque du Drive, lecture seule. */
+  async function listerDossier(parentId, filtre = "") {
+    const query = encodeURIComponent(`'${parentId}' in parents and trashed = false${filtre ? " and " + filtre : ""}`);
+    const res = await api(`https://www.googleapis.com/drive/v3/files?q=${query}&fields=files(id,name,mimeType)&pageSize=200`);
+    return res.files || [];
+  }
+
+  /* Contenu texte d'un fichier par son identifiant (un Google Doc est exporté en texte). */
+  async function lireParId(id, mimeType) {
+    const url = mimeType === "application/vnd.google-apps.document"
+      ? `https://www.googleapis.com/drive/v3/files/${id}/export?mimeType=text/plain`
+      : `https://www.googleapis.com/drive/v3/files/${id}?alt=media`;
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${token()}` } });
+    if (!res.ok) throw new Error(`lecture Drive impossible (${res.status})`);
+    return res.text();
+  }
+
   /* Met à la corbeille Drive (récupérable 30 jours) un fichier du dossier de l'app. */
   async function trashFile(name) {
     const parent = await getDossier();
@@ -144,5 +164,5 @@ const DriveAuth = (() => {
     }
   }
 
-  return { init, isReady, isConnected, ensureToken, deconnecter, writeFile, readFile, trashFile };
+  return { init, isReady, isConnected, ensureToken, deconnecter, writeFile, readFile, trashFile, listerDossier, lireParId };
 })();

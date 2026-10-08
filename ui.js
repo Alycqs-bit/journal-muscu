@@ -192,6 +192,12 @@ function renderAccueil() {
       resumeCourt(der)));
   }
 
+  const consignes = getConsignesCoach();
+  if (consignes) {
+    els.push(h("p", { class: "coach" }, h("strong", null, "🎯 Consignes du coach "),
+      `(analyse du ${dateFr(consignes.date_seance)}) : ${Object.keys(consignes.exos).length} exercice(s), affichées dans la séance.`));
+  }
+
   const aRetirer = lsGet("muscu:a_retirer", []);
   if (aRetirer.length) {
     const status = h("p", { class: "muted" });
@@ -254,6 +260,8 @@ function renderAccueil() {
         await retirerDeDrive((msg) => { statusSync.textContent = msg; });
         const avant = Store.getArchivesApp().length;
         await envoyerOutbox((msg) => { statusSync.textContent = msg; });
+        statusSync.textContent = "Lecture des consignes du coach…";
+        try { await chargerConsignesCoach(); } catch (err) { console.warn("Consignes du coach :", err.message); }
         const recuperees = Store.getArchivesApp().length - avant;
         statusSync.textContent = recuperees > 0 ? `✅ ${recuperees} séance(s) récupérée(s) depuis Drive.` : "✅ Tout est à jour avec Drive.";
         setTimeout(() => { if (vue === "accueil") renderAccueil(); }, 1800);
@@ -271,14 +279,15 @@ function renderAccueil() {
 
 /* Au démarrage d'une séance : récupère sans bloquer les séances connues de Drive (autre appareil,
    données effacées). Silencieux : en cas d'échec, l'envoi de fin de séance resynchronisera de toute façon.
-   La fenêtre Google ne s'ouvre que sur un appareil jamais synchronisé ou si une séance attend d'être envoyée. */
+   Lit aussi les consignes du coach (dernière analyse de force). */
 async function synchroniserEnArrierePlan() {
   try {
+    /* Fenêtre Google (qui se referme seule une fois l'accès donné) : il faut le jeton pour lire les consignes du coach. */
     if (!DriveAuth.isConnected()) {
-      /* Fenêtre Google seulement sur un appareil jamais synchronisé, ou si une séance attend d'être envoyée. */
-      if (lsGet("muscu:sync_init", false) && !Store.getOutbox().length || !DriveAuth.isReady()) return;
+      if (!DriveAuth.isReady()) return;
       await DriveAuth.ensureToken();
     }
+    await chargerConsignesAffichage();
     /* Une séance précédente pas encore partie dans Drive (envoi coupé) : on en profite pour la renvoyer. */
     const avant = Store.getArchivesApp().length;
     if (Store.getOutbox().length) await envoyerOutbox();
@@ -289,6 +298,30 @@ async function synchroniserEnArrierePlan() {
   } catch (err) {
     console.warn("Synchronisation en arrière-plan :", err.message);
   }
+}
+
+/* Lit les consignes du coach dans Drive (silencieux en cas d'échec : on garde celles déjà connues)
+   et réaffiche la séance si elles ont changé, sauf pendant une saisie. */
+async function chargerConsignesAffichage() {
+  const avant = JSON.stringify(getConsignesCoach() && getConsignesCoach().exos);
+  try { await chargerConsignesCoach(); } catch (err) { console.warn("Consignes du coach :", err.message); return; }
+  const c = getConsignesCoach();
+  const saisieEnCours = document.activeElement && ["INPUT", "TEXTAREA"].includes(document.activeElement.tagName);
+  if (c && JSON.stringify(c.exos) !== avant && vue === "seance" && !saisieEnCours) renderSeance();
+}
+
+/* Encadré en haut de la séance : d'où viennent les consignes, remarques générales, alerte si elles datent. */
+function renderConsignesGenerales() {
+  const c = getConsignesCoach();
+  if (!c) return null;
+  const der = Store.getDerniereArchive();
+  const perimees = der && der.date > c.date_seance;
+  const n = Object.keys(c.exos).length;
+  return h("section", { class: "coach-box" + (perimees ? " old" : "") },
+    h("p", { class: "label" }, `🎯 Consignes du coach · analyse de la séance du ${dateFr(c.date_seance)}`),
+    c.general.map((g) => h("p", null, g)),
+    h("p", { class: "muted small" }, n ? `${n} exercice(s) avec une consigne : elle s'affiche dans sa fiche.` : "Pas de consigne par exercice."),
+    perimees ? h("p", { class: "small warn-txt" }, `⚠️ Ta séance du ${dateFr(der.date)} n'a pas encore été analysée : ces consignes datent d'avant.`) : null);
 }
 
 /* Bouton à double appui : le premier arme, le second (dans les 5 s) supprime. */
@@ -359,6 +392,8 @@ function renderSeance() {
 
   const els = [head];
   if (m.echauffement) els.push(h("p", { class: "echauffement" }, "Échauffement : " + m.echauffement));
+  const coach = renderConsignesGenerales();
+  if (coach) els.push(coach);
 
   let blocCourant = null;
   live.exos.forEach((x, i) => {
@@ -428,6 +463,8 @@ function renderCorps(x, i, exo) {
   }
 
   body.append(h("p", { class: "cible" }, "Cible : " + formatCible(exo)));
+  const consignes = getConsignesCoach();
+  if (consignes && consignes.exos[exo.id]) body.append(h("p", { class: "coach" }, h("strong", null, "🎯 Coach : "), consignes.exos[exo.id]));
   if (exo.rampe) body.append(h("p", { class: "rampe" }, "🔥 Échauffement : " + exo.rampe));
   const partenaire = partenaireSuperset(i);
   if (partenaire != null) {
