@@ -457,7 +457,7 @@ function renderCorps(x, i, exo) {
   if (f(i).saut && x.statut !== "saute") {
     body.append(h("div", { class: "chips" }, RAISONS_SAUT.map((r) => h("button", {
       class: "chip",
-      onclick: () => { x.statut = "saute"; x.raison = r.label; f(i).saut = false; save(); ouvert = null; renderSeance(); },
+      onclick: () => { x.statut = "saute"; x.raison = r.label; f(i).saut = false; save(); ouvert = exoSuivantSiTermine(i); renderSeance(); if (ouvert != null) defilerVersOuvert(); },
     }, r.label))));
   }
   if (f(i).comment || x.statut === "saute" && x.commentaire) {
@@ -748,21 +748,56 @@ function validerSerie(x, i, exo) {
   const numero = numeroSerie(exo, x, serie.cote);
   Repos.onValidation(live, serie, cibleRepos(exo, [...x.series, serie]));
   x.series.push(serie);
-  toast(`✓ ${serie.echauffement ? "Échauffement" : "Série " + numero}${serie.cote ? (serie.cote === "G" ? " gauche" : " droite") : ""} enregistré${serie.echauffement ? "" : "e"} : ${formatSerie(exo, serie)}`);
   if (x.statut === "saute") x.statut = "a_faire";
   x._draft = defaultDraft(exo, x, Store.getPerfPassee(exo.id));
   f(i).note = false;
-  /* Superset : le meneur (mollet) reste ouvert, la ligne « à faire » du suiveur apparaît dans sa fiche ;
+  const message = `✓ ${serie.echauffement ? "Échauffement" : "Série " + numero}${serie.cote ? (serie.cote === "G" ? " gauche" : " droite") : ""} enregistré${serie.echauffement ? "" : "e"} : ${formatSerie(exo, serie)}`;
+  /* Exercice (ou superset entier) terminé : on passe directement au suivant.
+     Sinon, superset : le meneur (mollet) reste ouvert, la ligne « à faire » du suiveur apparaît dans sa fiche ;
      une série notée depuis la fiche du suiveur ramène au meneur. */
-  const partenaire = serie.echauffement || estMeneur(i) ? null : partenaireSuperset(i);
-  if (partenaire != null) { ouvert = partenaire; edition = null; }
+  const suite = serie.echauffement ? null : exoSuivantSiTermine(i);
+  const partenaire = suite != null || serie.echauffement || estMeneur(i) ? null : partenaireSuperset(i);
+  const cible = suite != null ? suite : partenaire;
+  const complete = !serie.echauffement && suite == null && live.exos.every((y, k) => exoTermine(k));
+  toast(message + (suite != null ? ` → ${Store.getExo(live.exos[suite].exo_id).nom}` : complete ? " · séance complète ✓" : ""));
+  if (cible != null) { ouvert = cible; edition = null; }
   save();
   vibrer(30);
   renderSeance();
-  if (partenaire != null) {
-    const carte = document.querySelector(".exo-card.open");
-    if (carte) carte.scrollIntoView({ behavior: "smooth", block: "start" });
-  }
+  if (cible != null) defilerVersOuvert();
+}
+
+function defilerVersOuvert() {
+  const carte = document.querySelector(".exo-card.open");
+  if (carte) carte.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+/* Exercice terminé = nombre de séries de travail prévu atteint (haut de la cible, par côté pour un unilatéral),
+   ou exercice marqué « pas fait ». */
+function exoTermine(k) {
+  const x = live.exos[k];
+  if (!x) return true;
+  if (x.statut === "saute") return true;
+  const exo = Store.getExo(x.exo_id);
+  const cible = range(exo.cible_series);
+  if (!cible) return false;
+  const travail = seriesTravail(x.series);
+  const n = exo.unilateral
+    ? Math.min(travail.filter((s) => s.cote === "G").length, travail.filter((s) => s.cote === "D").length)
+    : travail.length;
+  return n >= cible[1];
+}
+
+/* Si l'exercice i (et tout son superset) vient d'être terminé : index du prochain exercice pas encore fait
+   (d'abord ceux qui suivent dans la séance, puis ceux sautés plus haut), sinon null. */
+function exoSuivantSiTermine(i) {
+  const x = live.exos[i];
+  const groupe = x.superset ? live.exos.map((y, k) => (y.superset === x.superset ? k : -1)).filter((k) => k >= 0) : [i];
+  if (!groupe.every(exoTermine)) return null;
+  const dernier = Math.max(...groupe);
+  const ordre = [...live.exos.keys()].filter((k) => k > dernier).concat([...live.exos.keys()].filter((k) => k < dernier && !groupe.includes(k)));
+  const k = ordre.find((k) => !exoTermine(k));
+  return k == null ? null : k;
 }
 
 /* Le meneur d'un superset est son premier exercice (le mollet), le suiveur le second (le releveur). */
@@ -815,10 +850,14 @@ function suiveurFait(a) {
   y.series.push(serie);
   if (y.statut === "saute") y.statut = "a_faire";
   y._draft = Object.assign({}, y._draft || {}, { cote: autreCote(a.cote), reps: a.reps, charge: a.charge, commentaire: "" });
-  toast(`✓ ${a.exo.nom.split(" — ")[0]} ${a.cote === "G" ? "gauche" : "droite"} enregistré : ${formatSerie(a.exo, serie)}`);
+  const suite = exoSuivantSiTermine(a.j);
+  toast(`✓ ${a.exo.nom.split(" — ")[0]} ${a.cote === "G" ? "gauche" : "droite"} enregistré : ${formatSerie(a.exo, serie)}`
+    + (suite != null ? ` → ${Store.getExo(live.exos[suite].exo_id).nom}` : ""));
+  if (suite != null) { ouvert = suite; edition = null; }
   save();
   vibrer(30);
   renderSeance();
+  if (suite != null) defilerVersOuvert();
 }
 
 function modifierSuiveur(a) {
@@ -828,8 +867,7 @@ function modifierSuiveur(a) {
   edition = null;
   save();
   renderSeance();
-  const carte = document.querySelector(".exo-card.open");
-  if (carte) carte.scrollIntoView({ behavior: "smooth", block: "start" });
+  defilerVersOuvert();
 }
 
 /* Index de l'autre exercice du même superset, ou null. */
