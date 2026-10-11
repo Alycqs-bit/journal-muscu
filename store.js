@@ -243,7 +243,8 @@ const Store = {
   /* Date et durée réelles d'une séance, d'après l'heure des séries (11/10/2026, après la séance du 10/10
      enregistrée au 09/10 avec 1448 min, reprise telle quelle par le projet Nutrition) :
      - date = jour de la dernière série ; début = démarrage, sauf s'il précède la 1re série du jour de plus de 2 h ;
-     - fin = dernière série + 10 min (pas l'heure de l'archivage : on peut archiver le lendemain) ;
+     - fin = enregistrement de la dernière série (pas l'heure de l'archivage : on peut archiver le lendemain).
+       Pas de marge ajoutée : la série est notée juste après avoir été faite (marge de 10 min retirée le 11/10, sans fondement) ;
      - au-delà de 4 h, la durée n'a pas de sens → « non mesurée » plutôt qu'un chiffre faux.
      Sans heure sur les séries (séance commencée avant le 11/10) : ancien calcul, même garde-fou. */
   dateEtDuree(live) {
@@ -256,7 +257,7 @@ const Store = {
       date = localDate(new Date(derniere));
       const duJour = ts.filter((t) => localDate(new Date(t)) === date);
       if (duJour[0] - debut > 2 * 3600 * 1000 || localDate(new Date(debut)) !== date) debut = duJour[0];
-      fin = Math.min(fin, derniere + 10 * 60 * 1000);
+      fin = Math.min(fin, derniere);
     }
     const min = Math.round((fin - debut) / 60000);
     return { date, duree_min: min > 0 && min <= 240 ? min : null };
