@@ -102,11 +102,11 @@ const LIBRARY = {
   },
   squat: {
     saisie: ["reps", "charge", "rir", "technique"],
-    nom: "Squat — barre", groupe: "quadriceps",
+    nom: "Squat — barre", groupe: "quadriceps", pas_charge: [5, 10],
     type_mesure: "reps_charge", reglages: "descente contrôlée, montée explosive",
     rampe: "20×10 → 50×6 → 70×4", rampe_series: [{ reps: 10, charge: 20 }, { reps: 6, charge: 50 }, { reps: 4, charge: 70 }], rir_cible: "1-2",
     cible_series: [2, 2], cible_reps: [6, 8], repos_sec: [120, 240],
-    consignes: "Progression : quand les 2 séries passent à 8 reps propres à RIR 1, +2,5 à 5 kg et on repart à 6.",
+    consignes: "Progression : quand les 2 séries passent à 8 reps propres à RIR 1, +5 kg (paliers de 5 kg à la maison) et on repart à 6.",
   },
   rdl: {
     saisie: ["reps", "charge", "rir", "technique"],
@@ -130,7 +130,7 @@ const LIBRARY = {
     type_mesure: "reps_seules", reglages: "",
     rampe: "aucun",
     cible_series: [2, 2], cible_reps: [5, 8], repos_sec: [90, 120],
-    consignes: "",
+    consignes: "Amplitude toujours la même, tout donner à chaque série (règle d'Alix du 11/10) : seules les reps comptent.",
   },
 
   /* ---------- Force Bloc 1, version du 15/09 (historique uniquement) ---------- */
