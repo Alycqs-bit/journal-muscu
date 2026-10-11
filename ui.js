@@ -160,12 +160,26 @@ function renderAccueil() {
 
   if (live) {
     const n = live.exos.reduce((t, x) => t + x.series.length, 0);
-    els.push(h("section", { class: "card accent" },
-      h("p", { class: "label" }, "Séance en cours"),
+    const autreJour = live.date !== localDate();
+    els.push(h("section", { class: "card " + (autreJour ? "warn" : "accent") },
+      h("p", { class: "label" }, autreJour ? "⚠️ Séance pas terminée d'un autre jour" : "Séance en cours"),
       h("p", { class: "big" }, Store.getModele(live.modele).nom),
-      h("p", { class: "muted" }, `commencée à ${heure(live.debut_ts)} · ${n} série(s) notée(s)`),
+      h("p", { class: "muted" }, `commencée ${autreJour ? "le " + dateFr(live.date) + " " : ""}à ${heure(live.debut_ts)} · ${n} série(s) notée(s)`),
+      autreJour ? h("p", { class: "small" }, n
+        ? "Reprends-la pour l'archiver (elle sera datée du jour de ses séries), ou abandonne-la."
+        : "Aucune série notée : recommence-la aujourd'hui pour qu'elle soit datée du bon jour.") : null,
       h("div", { class: "row" },
-        h("button", { class: "btn-primary", onclick: () => allerA(ouvrirSeance) }, "Reprendre"),
+        autreJour && !n ? h("button", {
+          class: "btn-primary",
+          onclick: () => {
+            synchroniserEnArrierePlan();
+            debloquerSon();
+            Store.abandonnerSeance();
+            live = Store.demarrerSeance(live.modele);
+            ouvert = null;
+            allerA(ouvrirSeance);
+          },
+        }, "Recommencer aujourd'hui") : h("button", { class: "btn-primary", onclick: () => allerA(ouvrirSeance) }, "Reprendre"),
         h("button", {
           class: "btn-ghost",
           onclick: () => {

@@ -28,5 +28,7 @@ document.addEventListener("visibilitychange", () => {
 DriveAuth.init(() => { if (vue === "accueil") renderAccueil(); });
 
 history.replaceState(null, "", location.pathname);
-if (Store.getSeanceLive()) allerA(ouvrirSeance);
+/* Une séance en cours d'un autre jour ne se rouvre pas toute seule : l'accueil demande quoi en faire. */
+const enCours = Store.getSeanceLive();
+if (enCours && enCours.date === localDate()) allerA(ouvrirSeance);
 else renderAccueil();

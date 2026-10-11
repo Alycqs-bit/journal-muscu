@@ -22,8 +22,7 @@ function lsSet(key, value) {
   try { localStorage.setItem(key, JSON.stringify(value)); } catch (err) { console.error("localStorage :", err); }
 }
 
-function localDate() {
-  const d = new Date();
+function localDate(d = new Date()) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
@@ -241,13 +240,36 @@ const Store = {
     localStorage.removeItem(LS_KEYS.live);
   },
 
+  /* Date et durée réelles d'une séance, d'après l'heure des séries (11/10/2026, après la séance du 10/10
+     enregistrée au 09/10 avec 1448 min, reprise telle quelle par le projet Nutrition) :
+     - date = jour de la dernière série ; début = démarrage, sauf s'il précède la 1re série du jour de plus de 2 h ;
+     - fin = dernière série + 10 min (pas l'heure de l'archivage : on peut archiver le lendemain) ;
+     - au-delà de 4 h, la durée n'a pas de sens → « non mesurée » plutôt qu'un chiffre faux.
+     Sans heure sur les séries (séance commencée avant le 11/10) : ancien calcul, même garde-fou. */
+  dateEtDuree(live) {
+    const ts = live.exos.flatMap((x) => x.series.map((s) => s.ts)).filter(Number.isFinite).sort((a, b) => a - b);
+    let debut = live.debut_ts;
+    let fin = Date.now();
+    let date = live.date;
+    if (ts.length) {
+      const derniere = ts[ts.length - 1];
+      date = localDate(new Date(derniere));
+      const duJour = ts.filter((t) => localDate(new Date(t)) === date);
+      if (duJour[0] - debut > 2 * 3600 * 1000 || localDate(new Date(debut)) !== date) debut = duJour[0];
+      fin = Math.min(fin, derniere + 10 * 60 * 1000);
+    }
+    const min = Math.round((fin - debut) / 60000);
+    return { date, duree_min: min > 0 && min <= 240 ? min : null };
+  },
+
   finaliserSeance(live) {
+    const quand = this.dateEtDuree(live);
     const archive = {
-      id: live.id,
-      date: live.date,
+      id: quand.date === live.date ? live.id : `${quand.date}-${live.modele}`,
+      date: quand.date,
       modele: live.modele,
       version_programme: live.version_programme,
-      duree_min: Math.round((Date.now() - live.debut_ts) / 60000),
+      duree_min: quand.duree_min,
       commentaire_seance: live.commentaire_seance || "",
       tags: live.tags || [],
       exos: live.exos.map((x, i) => {
