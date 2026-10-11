@@ -1,52 +1,19 @@
-/* Chrono de repos (cahier des charges §3, refondu le 03/10/2026).
+/* Chrono de repos (refondu le 03/10/2026, simplifié le 11/10/2026).
 
    Principe : on ne compte pas les secondes une à une, on note l'heure de départ et on calcule l'écart.
    Le chrono reste donc juste même si l'écran se met en veille ou si l'onglet est rechargé
    (l'état vit dans la séance en cours, sauvegardée dans le navigateur).
 
-   live.repos          : repos en cours { start_ts, depart: "tap" | "validation", validee, cible: [min, max] | null }
-                          validee = la série qui vient de finir a déjà été saisie.
-   live.reposEnAttente : repos terminé { sec, precision }, accroché à la prochaine série validée.
+   Depuis le 11/10 : le repos démarre tout seul à la validation d'une série et sert de repère (bips),
+   il n'est plus enregistré (Alix : la saisie « Série finie / Je repars » demandait trop de rigueur
+   pour des chiffres imprécis). Les séries archivées avant gardent leur `repos_avant_sec`.
 
-   Précision enregistrée sur la série :
-   - exact          : « Série finie » puis « Je repars » ;
-   - depart_tardif  : « Série finie » oublié, départ pris à la validation de la série d'avant ;
-   - approximatif   : « Je repars » oublié, la durée inclut la série elle-même. */
+   live.repos : repos en cours { start_ts, cible: [min, max] | null, prebip } */
 
 const Repos = {
-  serieFinie(live, cible) {
-    const now = Date.now();
-    if (live.repos && live.repos.validee) {
-      live.reposEnAttente = { sec: Math.round((now - live.repos.start_ts) / 1000), precision: "approximatif" };
-    }
-    live.repos = { start_ts: now, depart: "tap", validee: false, cible };
-  },
-
-  jeRepars(live) {
-    if (!live.repos) return;
-    const sec = Math.round((Date.now() - live.repos.start_ts) / 1000);
-    live.reposEnAttente = { sec, precision: live.repos.depart === "tap" ? "exact" : "depart_tardif" };
-    live.repos = null;
-  },
-
-  /* Appelé à chaque série validée : accroche le repos qui la précède et relance le chrono si besoin. */
-  onValidation(live, serie, cible) {
-    const now = Date.now();
-    if (live.reposEnAttente) {
-      serie.repos_avant_sec = live.reposEnAttente.sec;
-      serie.repos_precision = live.reposEnAttente.precision;
-      live.reposEnAttente = null;
-    }
-    if (live.repos && !live.repos.validee) {
-      live.repos.validee = true;
-      live.repos.cible = cible;
-      return;
-    }
-    if (live.repos && live.repos.validee && serie.repos_avant_sec == null) {
-      serie.repos_avant_sec = Math.round((now - live.repos.start_ts) / 1000);
-      serie.repos_precision = "approximatif";
-    }
-    live.repos = { start_ts: now, depart: "validation", validee: true, cible };
+  onValidation(live, cible) {
+    live.repos = { start_ts: Date.now(), cible, prebip: false };
+    live.reposEnAttente = null;
   },
 
   arreter(live) {

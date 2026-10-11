@@ -11,7 +11,7 @@ function detailSerie(exo, s) {
   const parts = [];
   if (s.cote) parts.push(s.cote);
   parts.push(formatSerie(exo, s));
-  if (s.rir != null) parts.push(`RIR ${s.rir}`);
+  if (s.rir != null) parts.push(`RIR ${s.rir === 2 ? "2+" : s.rir}`); // « 2 ou + » depuis le 11/10
   if (s.technique) parts.push(TECHNIQUE_TXT[s.technique] || s.technique);
   if (s.repos_avant_sec != null) parts.push(`repos avant ${formatDuree(s.repos_avant_sec)} (${PRECISION_REPOS[s.repos_precision] || "?"})`);
   let txt = parts.join(" · ");

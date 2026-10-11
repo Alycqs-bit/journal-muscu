@@ -226,6 +226,17 @@ const Store = {
   saveSeanceLive(live) {
     lsSet(LS_KEYS.live, live);
   },
+  /* Séance démarrée puis laissée ouverte (ex. 09/10 : app montrée la veille, séance faite le lendemain) :
+     à la première série notée, si le démarrage date de plus de 2 h, la séance repart de maintenant
+     (date, identifiant et durée justes). */
+  recalerDebutSiAncien(live) {
+    const rien = live.exos.every((x) => !x.series.length);
+    if (!rien || Date.now() - live.debut_ts < 2 * 3600 * 1000) return false;
+    live.debut_ts = Date.now();
+    live.date = localDate();
+    live.id = `${live.date}-${live.modele}`;
+    return true;
+  },
   abandonnerSeance() {
     localStorage.removeItem(LS_KEYS.live);
   },
@@ -281,6 +292,23 @@ const Store = {
   },
   getSupprimees() {
     return lsGet("muscu:supprimees", []);
+  },
+
+  /* Change la date d'une séance enregistrée par l'app (séance démarrée un jour, faite le lendemain) :
+     nouvelle séance à la bonne date, envoyée dans Drive ; l'ancienne passe par la suppression normale
+     (retirée de Drive et des autres appareils). Idempotent : sans l'ancienne, ne fait rien. */
+  redaterArchive(ancienId, nouvelleDate, modifs) {
+    const ancienne = this.getArchivesApp().find((a) => a.id === ancienId);
+    if (!ancienne) return null;
+    const nouvelle = Object.assign(JSON.parse(JSON.stringify(ancienne)), modifs || {}, { date: nouvelleDate });
+    nouvelle.id = `${nouvelleDate}-${ancienne.modele}`;
+    if (this.getArchive(nouvelle.id)) nouvelle.id = `${nouvelle.id}-${Date.now() % 100000}`;
+    this.supprimerArchive(ancienId);
+    const archives = this.getArchivesApp();
+    archives.push(nouvelle);
+    lsSet(LS_KEYS.archives, archives.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0)));
+    this.ajouterOutbox(nouvelle.id);
+    return nouvelle;
   },
 
   /* Fusionne la sauvegarde lue dans Drive : récupère les séances enregistrées ailleurs (autre appareil,

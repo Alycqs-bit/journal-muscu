@@ -84,6 +84,7 @@ const LIBRARY = {
     consignes: "La « charge » = distance au point d'amarrage, mesurée au même repère au sol. Progression : 3×30 propres → on recule et on repart à 3×20.",
   },
   soleaire_barre: {
+    /* Abandonné le 10/10/2026 (retiré de la séance), gardé pour l'historique. */
     saisie: ["reps", "charge", "rir", "technique"],
     nom: "Mollet genou fléchi — barre sur les genoux", groupe: "mollets", lieu: "maison",
     type_mesure: "reps_charge", reglages: "assis, hanche à 90° · tempo 3-1-3-2 (3 s montée, 1 s en haut, 3 s descente, 2 s en bas)",
@@ -103,7 +104,7 @@ const LIBRARY = {
     saisie: ["reps", "charge", "rir", "technique"],
     nom: "Squat — barre", groupe: "quadriceps",
     type_mesure: "reps_charge", reglages: "descente contrôlée, montée explosive",
-    rampe: "20×10 → 40×6 → 70×4", rampe_series: [{ reps: 10, charge: 20 }, { reps: 6, charge: 40 }, { reps: 4, charge: 70 }], rir_cible: "1-2",
+    rampe: "20×10 → 50×6 → 70×4", rampe_series: [{ reps: 10, charge: 20 }, { reps: 6, charge: 50 }, { reps: 4, charge: 70 }], rir_cible: "1-2",
     cible_series: [2, 2], cible_reps: [6, 8], repos_sec: [120, 240],
     consignes: "Progression : quand les 2 séries passent à 8 reps propres à RIR 1, +2,5 à 5 kg et on repart à 6.",
   },
@@ -180,7 +181,8 @@ const PROGRAMME = {
         { variantes: ["mollet_tendu_uni_maison", "mollet_tendu_uni_smith", "mollet_tendu_smith"], superset: "mollet" },
         { exo: "releveur", superset: "mollet" },
       ] },
-      { titre: "Mollet fléchi", slots: [{ variantes: ["soleaire_barre", "soleaire_presse"] }] },
+      /* Barre sur les genoux abandonnée le 10/10 (Alix : douloureux, pas assez lourd, même en unilatéral) : machine assise en salle seulement. */
+      { titre: "Mollet fléchi", slots: [{ variantes: ["soleaire_presse"] }] },
       { titre: "Force", slots: ["squat", "rdl", "fente_bulgare", "nordic"] },
     ],
   },

@@ -7,6 +7,14 @@ if ("serviceWorker" in navigator) {
   });
 }
 
+/* Corrections ponctuelles de séances enregistrées, demandées par Alix (voir journal de bord).
+   Appliquées une seule fois sur l'appareil qui a la séance ; Drive suit à la synchronisation suivante. */
+const CORRECTIONS_SEANCES = [
+  /* Séance du 10/10/2026 enregistrée au 09/10 (app ouverte la veille) ; durée faussée (1448 min), réelle inconnue. */
+  { ancien: "2026-10-09-FONDATION", date: "2026-10-10", modifs: { duree_min: null } },
+];
+CORRECTIONS_SEANCES.forEach((c) => Store.redaterArchive(c.ancien, c.date, c.modifs));
+
 $("repos-btn").addEventListener("click", onReposBtn);
 setInterval(tick, 250);
 

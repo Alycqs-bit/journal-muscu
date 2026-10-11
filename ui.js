@@ -5,7 +5,7 @@ let live = null;        // séance en cours (copie de travail, sauvegardée à c
 let vue = "accueil";
 let ouvert = null;      // index de l'exo déplié
 let edition = null;     // { idx, si } : série en cours de correction
-const flags = {};       // affichages temporaires par exo : { comment, saut, note, erreur }
+const flags = {};       // affichages temporaires par exo : { comment, saut, erreur }
 let dernierePhase = null;
 let commentSeanceOuvert = false;
 
@@ -26,6 +26,8 @@ function h(tag, props, ...children) {
 
 function f(i) { return flags[i] || (flags[i] = {}); }
 function save() { if (live) Store.saveSeanceLive(live); }
+/* « 2 » s'affiche « 2+ » : depuis le 11/10, c'est le choix « 2 ou + » (avant, 2 exact, donc toujours vrai). */
+function texteRir(r) { return r === 2 ? "2+" : String(r); }
 function vibrer(p) { try { if (navigator.vibrate) navigator.vibrate(p); } catch (err) { /* rien */ } }
 
 /* Bips : le navigateur n'autorise le son qu'après un appui de l'utilisateur, d'où debloquerSon() sur les boutons. */
@@ -37,20 +39,24 @@ function debloquerSon() {
   } catch (err) { audioCtx = null; }
 }
 function bip(n = 2) {
-  vibrer([200, 100, 200]);
+  vibrer([500, 150, 500, 150, 500]);
   if (!audioCtx) return;
+  /* Onde carrée, volume maximal, deux notes alternées : bien plus perçant qu'une sinusoïde par-dessus
+     de la musique (11/10). Une page web ne peut pas dépasser le volume « média » du téléphone. */
   try {
     for (let k = 0; k < n; k++) {
       const o = audioCtx.createOscillator(), g = audioCtx.createGain();
-      const t = audioCtx.currentTime + k * 0.3;
-      o.frequency.value = 880;
+      const t = audioCtx.currentTime + k * 0.35;
+      o.type = "square";
+      o.frequency.value = k % 2 ? 1320 : 1760;
       o.connect(g);
       g.connect(audioCtx.destination);
       g.gain.setValueAtTime(0.0001, t);
-      g.gain.exponentialRampToValueAtTime(0.5, t + 0.02);
-      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.2);
+      g.gain.exponentialRampToValueAtTime(1, t + 0.01);
+      g.gain.setValueAtTime(1, t + 0.22);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.28);
       o.start(t);
-      o.stop(t + 0.22);
+      o.stop(t + 0.3);
     }
   } catch (err) { /* pas de son, la vibration suffit */ }
 }
@@ -290,6 +296,7 @@ async function synchroniserEnArrierePlan() {
     await chargerConsignesAffichage();
     /* Une séance précédente pas encore partie dans Drive (envoi coupé) : on en profite pour la renvoyer. */
     const avant = Store.getArchivesApp().length;
+    if (lsGet("muscu:a_retirer", []).length) await retirerDeDrive();
     if (Store.getOutbox().length) await envoyerOutbox();
     else await synchroniserDepuisDrive();
     /* Réaffiche pour mettre à jour « dernière fois » et records, sauf si une saisie est en cours. */
@@ -539,7 +546,7 @@ function renderListeSeries(x, i, exo) {
     const veutRir = !s.echauffement && champ(exo, "rir") && champ(exo, "reps") && !exo.reps_fixes;
     const veutTech = !s.echauffement && champ(exo, "technique");
     const tags = [];
-    if (s.rir != null) tags.push(`RIR ${s.rir}  `);
+    if (s.rir != null) tags.push(`RIR ${texteRir(s.rir)}  `);
     else if (veutRir) tags.push(h("span", { class: "manque" }, "RIR ?"), " ");
     if (s.technique) tags.push(s.technique === "propre" ? "🟢  " : "🟡  ");
     else if (veutTech) tags.push(h("span", { class: "manque rond", title: "Technique non notée" }, "?"), " ");
@@ -707,10 +714,11 @@ function renderSaisie(x, i, exo, avant) {
 
   if (hasReps && champ(exo, "rir")) {
     form.append(h("div", { class: "field" }, h("span", { class: "field-label" }, "RIR"),
-      h("div", { class: "seg" }, [0, 1, 2, 3, 4].map((n) => h("button", {
+      /* 0 / 1 / « 2 ou + » (11/10, Alix : au-delà de 2 l'estimation ne veut plus rien dire). « 2+ » est noté 2. */
+      h("div", { class: "seg" }, [0, 1, 2].map((n) => h("button", {
         class: d.rir === n ? "selected" : "",
         onclick: () => { d.rir = d.rir === n ? null : n; save(); renderSeance(); },
-      }, String(n))))));
+      }, n === 2 ? "2 ou +" : String(n))))));
   }
 
   if (champ(exo, "technique")) {
@@ -720,7 +728,7 @@ function renderSaisie(x, i, exo, avant) {
         h("button", { class: d.technique === "degradee" ? "selected ko" : "", onclick: () => { d.technique = d.technique === "degradee" ? null : "degradee"; save(); renderSeance(); } }, "🟡 Dégradée"))));
   }
 
-  const noteOuverte = f(i).note || d.commentaire;
+  /* Plus de note par série (11/10, Alix : inutile) ; le commentaire d'exercice reste. */
   form.append(h("div", { class: "row" },
     h("button", {
       class: "toggle" + (d.echauffement ? " on" : ""),
@@ -731,13 +739,7 @@ function renderSaisie(x, i, exo, avant) {
         renderSeance();
       },
     }, d.echauffement ? "☑ Échauffement" : "☐ Échauffement"),
-    h("button", { class: "toggle" + (noteOuverte ? " on" : ""), onclick: () => { f(i).note = !f(i).note; renderSeance(); } }, "💬 Note de série")));
-  if (noteOuverte) {
-    form.append(h("input", {
-      class: "text-input", placeholder: "Note sur cette série…", value: d.commentaire || "",
-      oninput: (ev) => { d.commentaire = ev.target.value; save(); },
-    }));
-  }
+  ));
 
   if (f(i).erreur) form.append(h("p", { class: "erreur" }, f(i).erreur));
 
@@ -782,12 +784,13 @@ function construireSerie(exo, d, i) {
 function validerSerie(x, i, exo) {
   const serie = construireSerie(exo, x._draft, i);
   if (!serie) return renderSeance();
+  Store.recalerDebutSiAncien(live);
   const numero = numeroSerie(exo, x, serie.cote);
-  Repos.onValidation(live, serie, cibleRepos(exo, [...x.series, serie]));
+  serie.ts = Date.now();
+  Repos.onValidation(live, cibleRepos(exo, [...x.series, serie]));
   x.series.push(serie);
   if (x.statut === "saute") x.statut = "a_faire";
   x._draft = defaultDraft(exo, x, Store.getPerfPassee(exo.id));
-  f(i).note = false;
   const message = `✓ ${serie.echauffement ? "Échauffement" : "Série " + numero}${serie.cote ? (serie.cote === "G" ? " gauche" : " droite") : ""} enregistré${serie.echauffement ? "" : "e"} : ${formatSerie(exo, serie)}`;
   /* Exercice (ou superset entier) terminé : on passe directement au suivant.
      Sinon, superset : le meneur (mollet) reste ouvert, la ligne « à faire » du suiveur apparaît dans sa fiche ;
@@ -882,7 +885,8 @@ function renderSuiveurEnAttente(a) {
 function suiveurFait(a) {
   debloquerSon();
   const y = live.exos[a.j];
-  const serie = { cote: a.cote, reps: a.reps };
+  Store.recalerDebutSiAncien(live);
+  const serie = { cote: a.cote, reps: a.reps, ts: Date.now() };
   if (champ(a.exo, "charge")) serie.charge = a.charge;
   y.series.push(serie);
   if (y.statut === "saute") y.statut = "a_faire";
@@ -952,13 +956,12 @@ function toggleEffort(x, i, exo, d) {
   if (live.effort && live.effort.idx === i) {
     d.duree_sec = Math.round((Date.now() - live.effort.start_ts) / 1000);
     live.effort = null;
-    Repos.serieFinie(live, cibleRepos(exo, [...x.series, { cote: d.cote, echauffement: d.echauffement }]));
     save();
     vibrer(30);
     validerSerie(x, i, exo);
     return;
   }
-  if (live.repos) Repos.jeRepars(live);
+  Repos.arreter(live);
   live.effort = { idx: i, start_ts: Date.now(), bip: false };
   save();
   vibrer(30);
@@ -967,14 +970,8 @@ function toggleEffort(x, i, exo, d) {
 
 /* ---------- Barre de repos (toujours en haut pendant la séance) ---------- */
 
-function cibleDepuisExoOuvert() {
-  if (ouvert == null || !live.exos[ouvert]) return null;
-  const x = live.exos[ouvert];
-  const exo = Store.getExo(x.exo_id);
-  const d = x._draft || {};
-  return cibleRepos(exo, [...x.series, { cote: d.cote, echauffement: d.echauffement }]);
-}
-
+/* Repos (simplifié le 11/10, Alix : trop de rigueur pour des chiffres imprécis) : le chrono part tout seul
+   à la validation d'une série, bipe au bas de la fourchette, et rien n'est enregistré. Le bouton l'arrête. */
 function renderReposBar() {
   const bar = $("repos-bar");
   const actif = vue === "seance" && live;
@@ -984,16 +981,11 @@ function renderReposBar() {
   const st = Repos.etat(live);
   const temps = $("repos-temps"), sub = $("repos-sub"), btn = $("repos-btn");
   bar.className = "repos-bar " + (st ? st.phase : "idle");
-  /* Clignote le bouton qu'on risque d'oublier : « Je repars » une fois le repos minimum atteint,
-     puis « Série finie » pendant la série qui suit (jusqu'à l'appui ou la validation de la série).
-     Rien pendant le décompte du repos, ni pendant un chrono d'effort (corde), qui a son propre bouton. */
-  const clignote = st ? st.phase === "pret" || st.phase === "depasse" : !!live.reposEnAttente && !live.effort;
-  btn.classList.toggle("clignote", clignote);
+  btn.style.display = st ? "" : "none";
   if (!st) {
     dernierePhase = null;
-    temps.textContent = live.reposEnAttente ? formatDuree(live.reposEnAttente.sec) : "Repos";
-    sub.textContent = live.reposEnAttente ? "repos noté" : "à la fin de la série :";
-    btn.textContent = "⏱ Série finie";
+    temps.textContent = "Repos";
+    sub.textContent = "démarre quand tu enregistres une série";
     return;
   }
   /* Pré-sonnerie : un bip court 10 s avant le bas de la fourchette (repos assez longs seulement). */
@@ -1002,22 +994,21 @@ function renderReposBar() {
     save();
     bip(1);
   }
-  if (dernierePhase === "decompte" && st.phase === "pret") bip(2);
-  if (dernierePhase === "pret" && st.phase === "depasse") vibrer(400);
+  if (dernierePhase === "decompte" && st.phase === "pret") bip(3);
+  if (dernierePhase === "pret" && st.phase === "depasse") vibrer([400, 150, 400]);
   dernierePhase = st.phase;
   temps.textContent = formatDuree(Math.floor(st.ecoule));
   sub.textContent = st.cible ? `repos · cible ${formatRange(st.cible, formatDuree)}` : "repos";
-  btn.textContent = "▶ Je repars";
+  btn.textContent = "✕ Arrêter";
 }
 
 function onReposBtn() {
   if (!live) return;
   debloquerSon();
-  if (live.repos) Repos.jeRepars(live);
-  else Repos.serieFinie(live, cibleDepuisExoOuvert());
+  Repos.arreter(live);
   save();
   vibrer(30);
-  if (vue === "seance") renderSeance(); else renderReposBar();
+  renderReposBar();
 }
 
 function tick() {
