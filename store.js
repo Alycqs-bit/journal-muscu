@@ -316,6 +316,21 @@ const Store = {
     return lsGet("muscu:supprimees", []);
   },
 
+  /* Applique une correction demandée par Alix à une séance enregistrée par l'app, une seule fois
+     (clé mémorisée), puis la renvoie dans Drive. Renvoie true si appliquée. */
+  corrigerArchive(cle, id, corriger) {
+    const faites = lsGet("muscu:corrections_faites", []);
+    if (faites.includes(cle)) return false;
+    const archives = this.getArchivesApp();
+    const a = archives.find((x) => x.id === id);
+    if (!a) return false;
+    corriger(a);
+    lsSet(LS_KEYS.archives, archives);
+    lsSet("muscu:corrections_faites", [...faites, cle]);
+    this.ajouterOutbox(id);
+    return true;
+  },
+
   /* Change la date d'une séance enregistrée par l'app (séance démarrée un jour, faite le lendemain) :
      nouvelle séance à la bonne date, envoyée dans Drive ; l'ancienne passe par la suppression normale
      (retirée de Drive et des autres appareils). Idempotent : sans l'ancienne, ne fait rien. */

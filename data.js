@@ -84,7 +84,7 @@ const LIBRARY = {
     consignes: "La « charge » = distance au point d'amarrage, mesurée au même repère au sol. Progression : 3×30 propres → on recule et on repart à 3×20.",
   },
   soleaire_barre: {
-    /* Abandonné le 10/10/2026 (retiré de la séance), gardé pour l'historique. */
+    /* Abandonné le 10/10/2026, retiré de la séance le 11/10 (v2), gardé pour l'historique. */
     saisie: ["reps", "charge", "rir", "technique"],
     nom: "Mollet genou fléchi — barre sur les genoux", groupe: "mollets", lieu: "maison",
     type_mesure: "reps_charge", reglages: "assis, hanche à 90° · tempo 3-1-3-2 (3 s montée, 1 s en haut, 3 s descente, 2 s en bas)",
@@ -173,7 +173,7 @@ const LIBRARY = {
    Champs d'affichage : rampe (échauffement propre à l'exercice), rir_cible (affiché dans la cible). */
 const PROGRAMME = {
   FONDATION: {
-    id: "FONDATION", nom: "Fondation force", actif: true, version: 1, date_maj: "2026-10-03",
+    id: "FONDATION", nom: "Fondation force", actif: true, version: 2, date_maj: "2026-10-11",
     echauffement: "Footing 10'. L'échauffement propre à chaque exercice est indiqué dans sa fiche.",
     blocs: [
       { titre: "Pliométrie", slots: ["corde", { variantes: ["pogos_2pieds", "pogos_1jambe", "sauts_unipodaux"] }] },
@@ -181,8 +181,8 @@ const PROGRAMME = {
         { variantes: ["mollet_tendu_uni_maison", "mollet_tendu_uni_smith", "mollet_tendu_smith"], superset: "mollet" },
         { exo: "releveur", superset: "mollet" },
       ] },
-      /* Barre sur les genoux abandonnée le 10/10 (Alix : douloureux, pas assez lourd, même en unilatéral) : machine assise en salle seulement. */
-      { titre: "Mollet fléchi", slots: [{ variantes: ["soleaire_presse"] }] },
+      /* Mollet fléchi retiré le 11/10/2026 (v2, décision d'Alix) : barre sur les genoux douloureuse et trop légère
+         même en unilatéral, plus d'abonnement en salle pour la machine. Le mollet tendu reste. */
       { titre: "Force", slots: ["squat", "rdl", "fente_bulgare", "nordic"] },
     ],
   },

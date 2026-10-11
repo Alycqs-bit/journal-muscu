@@ -4,15 +4,28 @@
    Le chrono reste donc juste même si l'écran se met en veille ou si l'onglet est rechargé
    (l'état vit dans la séance en cours, sauvegardée dans le navigateur).
 
-   Depuis le 11/10 : le repos démarre tout seul à la validation d'une série et sert de repère (bips),
-   il n'est plus enregistré (Alix : la saisie « Série finie / Je repars » demandait trop de rigueur
-   pour des chiffres imprécis). Les séries archivées avant gardent leur `repos_avant_sec`.
+   Depuis le 11/10 : rien n'est plus enregistré (Alix : la saisie « Série finie / Je repars » demandait trop
+   de rigueur pour des chiffres imprécis) ; le chrono n'est qu'un repère avec bips. Les séries archivées
+   avant gardent leur `repos_avant_sec`.
+   - Bouton « Lancer le repos », à la fin de la série : le chrono part tout de suite, et continue pendant
+     qu'on note la série (la validation ne le relance pas, elle ajuste juste la cible).
+   - Bouton oublié : le chrono part à la validation de la série, en repli.
 
-   live.repos : repos en cours { start_ts, cible: [min, max] | null, prebip } */
+   live.repos : repos en cours { start_ts, cible: [min, max] | null, prebip, attente_validation } */
 
 const Repos = {
+  lancer(live, cible) {
+    live.repos = { start_ts: Date.now(), cible, prebip: false, attente_validation: true };
+    live.reposEnAttente = null;
+  },
+
   onValidation(live, cible) {
-    live.repos = { start_ts: Date.now(), cible, prebip: false };
+    if (live.repos && live.repos.attente_validation) {
+      live.repos.attente_validation = false;
+      live.repos.cible = cible;
+      return;
+    }
+    live.repos = { start_ts: Date.now(), cible, prebip: false, attente_validation: false };
     live.reposEnAttente = null;
   },
 

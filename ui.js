@@ -984,8 +984,16 @@ function toggleEffort(x, i, exo, d) {
 
 /* ---------- Barre de repos (toujours en haut pendant la séance) ---------- */
 
-/* Repos (simplifié le 11/10, Alix : trop de rigueur pour des chiffres imprécis) : le chrono part tout seul
-   à la validation d'une série, bipe au bas de la fourchette, et rien n'est enregistré. Le bouton l'arrête. */
+/* Repos (simplifié le 11/10, Alix : trop de rigueur pour des chiffres imprécis) : rien n'est enregistré.
+   « Lancer le repos » à la fin de la série (le chrono tourne pendant qu'on note) ; oublié, il part à la
+   validation. Bips au bas de la fourchette. */
+function cibleDepuisExoOuvert() {
+  if (ouvert == null || !live.exos[ouvert]) return null;
+  const x = live.exos[ouvert];
+  const d = x._draft || {};
+  return cibleRepos(Store.getExo(x.exo_id), [...x.series, { cote: d.cote, echauffement: d.echauffement }]);
+}
+
 function renderReposBar() {
   const bar = $("repos-bar");
   const actif = vue === "seance" && live;
@@ -995,11 +1003,12 @@ function renderReposBar() {
   const st = Repos.etat(live);
   const temps = $("repos-temps"), sub = $("repos-sub"), btn = $("repos-btn");
   bar.className = "repos-bar " + (st ? st.phase : "idle");
-  btn.style.display = st ? "" : "none";
+  btn.style.display = live.effort ? "none" : "";
   if (!st) {
     dernierePhase = null;
     temps.textContent = "Repos";
-    sub.textContent = "démarre quand tu enregistres une série";
+    sub.textContent = "à lancer dès la fin de la série";
+    btn.textContent = "⏱ Lancer le repos";
     return;
   }
   /* Pré-sonnerie : un bip court 10 s avant le bas de la fourchette (repos assez longs seulement). */
@@ -1013,13 +1022,15 @@ function renderReposBar() {
   dernierePhase = st.phase;
   temps.textContent = formatDuree(Math.floor(st.ecoule));
   sub.textContent = st.cible ? `repos · cible ${formatRange(st.cible, formatDuree)}` : "repos";
-  btn.textContent = "✕ Arrêter";
+  btn.textContent = "⏱ Relancer";
 }
 
+/* Lance (ou relance à zéro) le repos : à appuyer dès la fin de la série. */
 function onReposBtn() {
   if (!live) return;
   debloquerSon();
-  Repos.arreter(live);
+  Repos.lancer(live, cibleDepuisExoOuvert());
+  dernierePhase = null;
   save();
   vibrer(30);
   renderReposBar();

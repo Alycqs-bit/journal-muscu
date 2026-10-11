@@ -14,6 +14,11 @@ const CORRECTIONS_SEANCES = [
   { ancien: "2026-10-09-FONDATION", date: "2026-10-10", modifs: { duree_min: null } },
 ];
 CORRECTIONS_SEANCES.forEach((c) => Store.redaterArchive(c.ancien, c.date, c.modifs));
+/* 10/10/2026 : durée de la montre (59 min, Alix) et erreur de dictée dans le commentaire du mollet tendu. */
+Store.corrigerArchive("2026-10-10-duree-commentaire", "2026-10-10-FONDATION", (a) => {
+  a.duree_min = 59;
+  a.exos.forEach((x) => { if (x.commentaire) x.commentaire = x.commentaire.replace("ça passe mais trop mal", "ça passe pas trop mal"); });
+});
 
 $("repos-btn").addEventListener("click", onReposBtn);
 setInterval(tick, 250);
