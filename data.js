@@ -80,8 +80,8 @@ const LIBRARY = {
     saisie: ["reps", "charge"],
     nom: "Releveur — élastique", groupe: "releveur", unilateral: true, premier_cote: "D", unite: "dist.", pas_charge: [0.5, 1],
     type_mesure: "reps_charge", reglages: "assis au sol, orteils griffés vers la plante, relevé 1 s / retour freiné 3 s",
-    cible_series: [3, 3], cible_reps: [20, 25], repos_sec: null, repos_cotes_sec: null,
-    consignes: "La « charge » = distance au point d'amarrage, mesurée au même repère au sol. Progression : 3×30 propres → on recule et on repart à 3×20.",
+    cible_series: [3, 3], cible_reps: [20, 20], repos_sec: null, repos_cotes_sec: null,
+    consignes: "3 × 20 par pied, les 3 dernières reps très dures (règle d'Alix du 11/10). La distance au point d'amarrage se règle au ressenti : reculer si c'est trop facile, avancer si les 20 ne passent pas ; la noter comme repère approximatif.",
   },
   soleaire_barre: {
     /* Abandonné le 10/10/2026, retiré de la séance le 11/10 (v2), gardé pour l'historique. */
@@ -110,19 +110,19 @@ const LIBRARY = {
   },
   rdl: {
     saisie: ["reps", "charge", "rir", "technique"],
-    nom: "RDL — barre", groupe: "ischios",
+    nom: "RDL — barre", groupe: "ischios", pas_charge: [5, 10],
     type_mesure: "reps_charge", reglages: "descente contrôlée, montée explosive",
     rampe: "1 série d'approche : 70×6", rampe_series: [{ reps: 6, charge: 70 }], rir_cible: "1-2",
     cible_series: [2, 2], cible_reps: [6, 8], repos_sec: [120, 240],
-    consignes: "Progression : quand les 2 séries passent à 8 reps propres à RIR 1, +2,5 à 5 kg et on repart à 6.",
+    consignes: "Progression : quand les 2 séries passent à 8 reps propres à RIR 1, +5 kg (paliers de 5 kg à la maison) et on repart à 6.",
   },
   fente_bulgare: {
     saisie: ["reps", "charge", "rir", "technique"],
-    nom: "Fente bulgare — barre libre", groupe: "quadriceps", unilateral: true, premier_cote: "G",
+    nom: "Fente bulgare — barre libre", groupe: "quadriceps", pas_charge: [5, 10], unilateral: true, premier_cote: "G",
     type_mesure: "reps_charge", reglages: "descente contrôlée, montée explosive · commencer par la gauche",
     rampe: "aucun, déjà chaud après squat et RDL", rir_cible: "1-2",
     cible_series: [2, 2], cible_reps: [6, 8], repos_sec: [120, 240], repos_cotes_sec: [30, 60],
-    consignes: "Progression : quand les 2 séries passent à 8 reps propres à RIR 1, +2,5 à 5 kg et on repart à 6.",
+    consignes: "Progression : quand les 2 séries passent à 8 reps propres à RIR 1, +5 kg (paliers de 5 kg à la maison) et on repart à 6.",
   },
   nordic: {
     saisie: ["reps"],
