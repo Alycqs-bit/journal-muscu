@@ -39,10 +39,20 @@ function formatRange(r, fmt) {
 
 const Store = {
   /* ---------- Programme ---------- */
-  getExo(id) {
+  /* Avec « modeleId » : l'exercice tel que cette séance le prévoit (surcharge du créneau dans data.js,
+     ex. 2 séries en Entretien au lieu de 3 en Fondation). Sans : la fiche de base de LIBRARY. */
+  getExo(id, modeleId) {
     const exo = LIBRARY[id];
     if (!exo) return { id, nom: id, type_mesure: "reps_charge", unite: "kg", pas_charge: [1, 2.5], inconnu: true };
-    return Object.assign({ id, unite: "kg", pas_charge: [1, 2.5] }, exo);
+    return Object.assign({ id, unite: "kg", pas_charge: [1, 2.5] }, exo, this.surchargeDuCreneau(id, modeleId));
+  },
+  surchargeDuCreneau(id, modeleId) {
+    const m = modeleId && PROGRAMME[modeleId];
+    if (!m) return null;
+    for (const b of m.blocs) for (const slot of b.slots) {
+      if (typeof slot !== "string" && (slot.variantes || [slot.exo]).includes(id)) return slot.surcharge || null;
+    }
+    return null;
   },
   getModele(id) {
     return PROGRAMME[id] || { id, nom: id, blocs: [] };
@@ -145,17 +155,21 @@ const Store = {
   },
 
   /* Dernière variante utilisée dans ce modèle (pour présélectionner la bonne à la maison / en salle).
-     Jamais utilisée dans ce modèle : la première de la liste. */
+     Jamais utilisée dans ce modèle : la dernière utilisée dans n'importe quelle séance (ex. le niveau de pliométrie
+     atteint en Fondation, repris en Entretien), sinon la première de la liste. */
   derniereVariante(variantes, modeleId) {
-    for (const arch of this.archivesDuModele(modeleId)) {
-      const hit = arch.exos.find((x) => variantes.includes(x.exo_id) && seriesTravail(x.series).length);
-      if (hit) return hit.exo_id;
+    for (const liste of [this.archivesDuModele(modeleId), this.getArchives()]) {
+      for (const arch of liste) {
+        const hit = arch.exos.find((x) => variantes.includes(x.exo_id) && seriesTravail(x.series).length);
+        if (hit) return hit.exo_id;
+      }
     }
     return variantes[0];
   },
 
   /* Nombre de fois où l'exo a été sauté sur les dernières séances du même modèle (signal programme, §4). */
   nbSautsRecents(exoId, modeleId, n = 5) {
+    if (this.getExo(exoId, modeleId).facultatif) return 0;
     const recentes = this.getArchives().filter((a) => a.modele === modeleId).slice(0, n);
     return recentes.filter((a) => a.exos.some((x) => x.exo_id === exoId && x.statut === "saute")).length;
   },
@@ -274,7 +288,7 @@ const Store = {
       commentaire_seance: live.commentaire_seance || "",
       tags: live.tags || [],
       exos: live.exos.map((x, i) => {
-        const exo = this.getExo(x.exo_id);
+        const exo = this.getExo(x.exo_id, live.modele);
         const series = x.series.map(cleanSerie);
         return {
           exo_id: x.exo_id,

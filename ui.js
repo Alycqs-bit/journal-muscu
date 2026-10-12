@@ -413,6 +413,7 @@ function renderSeance() {
 
   const els = [head];
   if (m.echauffement) els.push(h("p", { class: "echauffement" }, "Échauffement : " + m.echauffement));
+  if (m.consigne) els.push(h("p", { class: "echauffement" }, "📌 " + m.consigne));
   const coach = renderConsignesGenerales();
   if (coach) els.push(coach);
 
@@ -440,7 +441,7 @@ function renderSeance() {
 function badgeExo(exo, x) {
   if (x.statut === "saute") return h("span", { class: "badge skip" }, "pas fait");
   const travail = seriesTravail(x.series);
-  if (!travail.length) return x.series.length ? h("span", { class: "badge" }, "échauffement") : null;
+  if (!travail.length) return x.series.length ? h("span", { class: "badge" }, "échauffement") : exo.facultatif ? h("span", { class: "badge" }, "facultatif") : null;
   const n = exo.unilateral
     ? Math.min(travail.filter((s) => s.cote === "G").length, travail.filter((s) => s.cote === "D").length)
     : travail.length;
@@ -450,7 +451,7 @@ function badgeExo(exo, x) {
 }
 
 function renderCarte(x, i) {
-  const exo = Store.getExo(x.exo_id);
+  const exo = Store.getExo(x.exo_id, live.modele);
   const open = ouvert === i;
   const card = h("div", { class: "exo-card" + (open ? " open" : "") + (x.statut === "saute" ? " saute" : "") });
   card.append(h("button", {
@@ -832,7 +833,7 @@ function exoTermine(k) {
   const x = live.exos[k];
   if (!x) return true;
   if (x.statut === "saute") return true;
-  const exo = Store.getExo(x.exo_id);
+  const exo = Store.getExo(x.exo_id, live.modele);
   const cible = range(exo.cible_series);
   if (!cible) return false;
   const travail = seriesTravail(x.series);
@@ -873,7 +874,7 @@ function suiveurEnAttente(i) {
     const c = s.cote || "D";
     vus[c]++;
     if (faits.filter((t) => (t.cote || "D") === c).length < vus[c]) {
-      const exoS = Store.getExo(suiveur.exo_id);
+      const exoS = Store.getExo(suiveur.exo_id, live.modele);
       const avant = Store.getPerfPassee(exoS.id);
       const ref = [...faits].reverse().find((t) => t.cote === c) || faits[faits.length - 1]
         || (avant ? seriesTravail(avant.entry.series).find((t) => t.cote === c) : null)
@@ -991,7 +992,7 @@ function cibleDepuisExoOuvert() {
   if (ouvert == null || !live.exos[ouvert]) return null;
   const x = live.exos[ouvert];
   const d = x._draft || {};
-  return cibleRepos(Store.getExo(x.exo_id), [...x.series, { cote: d.cote, echauffement: d.echauffement }]);
+  return cibleRepos(Store.getExo(x.exo_id, live.modele), [...x.series, { cote: d.cote, echauffement: d.echauffement }]);
 }
 
 function renderReposBar() {
@@ -1044,7 +1045,7 @@ function tick() {
     const el = $(`effort-${live.effort.idx}`);
     if (el) el.textContent = formatDuree(ecoule);
     const x = live.exos[live.effort.idx];
-    const objectif = x ? range(Store.getExo(x.exo_id).cible_temps_sec) : null;
+    const objectif = x ? range(Store.getExo(x.exo_id, live.modele).cible_temps_sec) : null;
     if (objectif && !live.effort.bip && ecoule >= objectif[0]) {
       live.effort.bip = true;
       save();
@@ -1056,8 +1057,10 @@ function tick() {
 /* ---------- Fin de séance ---------- */
 
 function renderFin() {
-  const nonFaits = live.exos.map((x, i) => ({ x, i })).filter(({ x }) => !seriesTravail(x.series).length);
-  const faits = live.exos.length - nonFaits.length;
+  /* Un exo facultatif pas fait n'est pas un écart : on ne demande pas pourquoi. */
+  const nonFaits = live.exos.map((x, i) => ({ x, i }))
+    .filter(({ x }) => !seriesTravail(x.series).length && !Store.getExo(x.exo_id, live.modele).facultatif);
+  const faits = live.exos.filter((x) => seriesTravail(x.series).length).length;
   const els = [
     h("header", { class: "seance-head" }, h("h1", null, "Fin de séance"),
       h("button", { class: "btn-ghost", onclick: () => { vue = "seance"; renderSeance(); } }, "← Séance")),
@@ -1097,7 +1100,9 @@ async function validerEtArchiver(btn) {
   let erreurGoogle = null;
   const google = DriveAuth.ensureToken().catch((err) => { erreurGoogle = err; });
 
-  live.exos.forEach((x) => { if (!seriesTravail(x.series).length && !x.raison) x.raison = "Pas le temps"; });
+  live.exos.forEach((x) => {
+    if (!seriesTravail(x.series).length && !x.raison) x.raison = Store.getExo(x.exo_id, live.modele).facultatif ? "Facultatif" : "Pas le temps";
+  });
   Repos.arreter(live);
   live.effort = null;
   const archive = Store.finaliserSeance(live);

@@ -45,14 +45,14 @@ function buildResumeMarkdown(archive) {
   const ecarts = [];
   const questions = [];
   for (const x of archive.exos) {
-    const exo = Store.getExo(x.exo_id);
+    const exo = Store.getExo(x.exo_id, archive.modele);
     const avant = Store.getPerfPassee(x.exo_id, archive);
     const avantTxt = avant ? `${formatSeries(exo, avant.entry.series)} (${avant.date})` : "absent";
     const total = totalSeance(exo, x.series);
-    const cible = modele.actif ? formatCible(exo) : "—";
+    const cible = modele.actif ? (exo.facultatif ? "facultatif · " : "") + formatCible(exo) : "—";
     L.push(`| ${cell(exo.nom)} | ${cell(cible)} | ${cell(avantTxt)} | ${cell(x.statut === "saute" ? "pas fait" : formatSeries(exo, x.series))} | ${cell(formatTotalDe(exo, x.series))} | ${x.statut} | ${cell(commentairesExo(x))} |`);
 
-    if (x.statut === "saute") ecarts.push(`- ${exo.nom} : pas fait (${x.raison || x.commentaire || "raison non précisée"})`);
+    if (x.statut === "saute" && !exo.facultatif) ecarts.push(`- ${exo.nom} : pas fait (${x.raison || x.commentaire || "raison non précisée"})`);
     if (x.statut === "partiel") ecarts.push(`- ${exo.nom} : partiel (${seriesTravail(x.series).length} séries de travail, cible ${formatCible(exo)})`);
     const sauts = Store.nbSautsRecents(x.exo_id, archive.modele);
     if (sauts >= 3) questions.push(`- ${exo.nom} : pas fait ${sauts} fois sur les 5 dernières séances de ce modèle → le programme doit peut-être bouger.`);
@@ -74,7 +74,7 @@ function buildResumeMarkdown(archive) {
 
   L.push("", "## Détail série par série");
   for (const x of archive.exos) {
-    const exo = Store.getExo(x.exo_id);
+    const exo = Store.getExo(x.exo_id, archive.modele);
     L.push("", `### ${exo.nom} — ${x.statut} · historique : \`exo-${x.exo_id}.md\``);
     if (!x.series.length) { L.push(`Pas fait${x.raison ? " : " + x.raison : ""}.`); continue; }
     let n = 0;

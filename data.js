@@ -170,7 +170,13 @@ const LIBRARY = {
 
 /* Un créneau de séance = un exo, { exo }, ou { variantes: [...] } quand plusieurs versions existent (la première = défaut).
    « superset » : les exos d'un même groupe s'enchaînent, l'app ouvre le suivant après chaque série de travail.
-   Champs d'affichage : rampe (échauffement propre à l'exercice), rir_cible (affiché dans la cible). */
+   « surcharge » : champs de l'exercice propres à cette séance (cible_series, consignes, facultatif…), qui remplacent
+   ceux de LIBRARY seulement ici. Même exercice (même id) donc même historique, records et charges comparables.
+   « facultatif: true » (dans la surcharge) : pas fait = pas un écart, aucune raison demandée en fin de séance.
+   Champs d'affichage d'une séance : echauffement, consigne (encadré en tête de séance).
+   Champs d'affichage d'un exo : rampe (échauffement propre à l'exercice), rir_cible (affiché dans la cible). */
+const REGLE_ENTRETIEN = "Entretien : on réduit la fréquence et le volume, jamais la charge. Garder la charge de fin de fondation à RIR 1-2 ; si elle devient facile, l'augmenter pour rester à RIR 1-2. Pas de progression recherchée, mais pas de baisse.";
+
 const PROGRAMME = {
   FONDATION: {
     id: "FONDATION", nom: "Fondation force", actif: true, version: 2, date_maj: "2026-10-11",
@@ -184,6 +190,33 @@ const PROGRAMME = {
       /* Mollet fléchi retiré le 11/10/2026 (v2, décision d'Alix) : barre sur les genoux douloureuse et trop légère
          même en unilatéral, plus d'abonnement en salle pour la machine. Le mollet tendu reste. */
       { titre: "Force", slots: ["squat", "rdl", "fente_bulgare", "nordic"] },
+    ],
+  },
+
+  /* Séance d'entretien (décision du 12/10/2026, projet Trail : plan-bloc-1-reprise-fondation-force.md §4,
+     encadré « SÉANCE D'ENTRETIEN »). Prend le relais de la fondation vers fin décembre 2026, 1×/semaine jusqu'au GTVO.
+     Proposée dès maintenant à côté de « Fondation force » : Alix choisit au démarrage. */
+  ENTRETIEN: {
+    id: "ENTRETIEN", nom: "Entretien force", actif: true, version: 1, date_maj: "2026-10-12",
+    echauffement: "Pas d'échauffement général (séance faite le jour d'une qualité, au moins 6 h après). L'échauffement propre à chaque exercice est indiqué dans sa fiche.",
+    consigne: REGLE_ENTRETIEN,
+    blocs: [
+      /* Mêmes exos et mêmes niveaux qu'en fondation : leur dosage actuel tombe déjà dans les ~40-60 contacts. */
+      { titre: "Pliométrie (rappel, ~40-60 contacts)", slots: ["corde", { variantes: ["pogos_2pieds", "pogos_1jambe", "sauts_unipodaux"] }] },
+      { titre: "Mollet tendu + releveur (superset)", slots: [
+        { variantes: ["mollet_tendu_uni_maison", "mollet_tendu_uni_smith", "mollet_tendu_smith"], superset: "mollet",
+          surcharge: { cible_series: [2, 2], rampe: "1 série plus légère par jambe avant les 2 séries de travail, pour monter en charge",
+            consignes: "Priorité de la séance. " + REGLE_ENTRETIEN } },
+        { exo: "releveur", superset: "mollet",
+          surcharge: { cible_series: [2, 2], consignes: "2 × 20 par pied, les 3 dernières reps très dures. La distance au point d'amarrage se règle au ressenti ; la noter comme repère approximatif." } },
+      ] },
+      /* Fente bulgare retirée de l'entretien (doublon du squat). */
+      { titre: "Force", slots: [
+        { exo: "squat", surcharge: { consignes: REGLE_ENTRETIEN } },
+        { exo: "rdl", surcharge: { consignes: REGLE_ENTRETIEN } },
+        { exo: "nordic", surcharge: { cible_series: [1, 1], facultatif: true,
+          consignes: "Facultatif : seulement si le temps le permet (pas fait = pas un écart). Amplitude toujours la même, tout donner : seules les reps comptent." } },
+      ] },
     ],
   },
 
