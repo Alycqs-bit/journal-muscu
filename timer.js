@@ -57,12 +57,14 @@ function cibleRepos(exo, seriesApres) {
   const derniere = seriesApres[seriesApres.length - 1];
   if (derniere && derniere.echauffement) {
     const ech = seriesApres.filter((s) => s.echauffement);
-    if (exo.unilateral) {
+    /* Rampe bilatérale : échauffement noté sans côté, compté comme sur un exo à deux jambes. */
+    const parCote = exo.unilateral && !exo.rampe_bilaterale;
+    if (parCote) {
       const g = ech.filter((s) => s.cote === "G").length, d = ech.filter((s) => s.cote === "D").length;
       if (g !== d) return exo.repos_cotes_sec ? range(exo.repos_cotes_sec) : null;
     }
     const prevues = (exo.rampe_series || []).length;
-    const faites = exo.unilateral ? ech.filter((s) => s.cote === derniere.cote).length : ech.length;
+    const faites = parCote ? ech.filter((s) => s.cote === derniere.cote).length : ech.length;
     return faites < prevues ? REPOS_ECH_LEGER : REPOS_ECH_DERNIER;
   }
   if (exo.unilateral) {

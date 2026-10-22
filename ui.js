@@ -597,7 +597,7 @@ function valeursTravail(exo, x, avant) {
    ou que les séries de travail ont commencé. Une valeur non chiffrée reprend l'échauffement de la dernière fois. */
 function etapeRampe(exo, x, avant, cote) {
   const prevues = exo.rampe_series || [];
-  const duCote = (s) => !exo.unilateral || s.cote === cote;
+  const duCote = (s) => !exo.unilateral || exo.rampe_bilaterale || s.cote === cote;
   const series = x.series.filter(duCote);
   if (!prevues.length || series.some((s) => !s.echauffement)) return null;
   const k = series.length;
@@ -621,7 +621,7 @@ function defaultDraft(exo, x, avant) {
   const etape = etapeRampe(exo, x, avant, cote);
   const v = etape || valeursTravail(exo, x, avant);
   return {
-    reps: v.reps, charge: v.charge, duree_sec: v.duree_sec, cote,
+    reps: v.reps, charge: v.charge, duree_sec: v.duree_sec, cote: etape && exo.rampe_bilaterale ? null : cote,
     rir: null, technique: null, echauffement: !!etape, rampe: !!etape, commentaire: "",
   };
 }
@@ -636,6 +636,17 @@ function basculerEchauffement(exo, x, d) {
   } else if (d.rampe) {
     Object.assign(d, valeursTravail(exo, x, avant), { rampe: false });
   }
+  /* Échauffement à deux jambes : pas de côté ; on le retrouve en repassant en série de travail. */
+  if (bilateralEch(exo, d)) d.cote = null;
+  else if (exo.unilateral && !d.cote) {
+    const last = seriesTravail(x.series).pop();
+    d.cote = last && last.cote ? autreCote(last.cote) : exo.premier_cote || "G";
+  }
+}
+
+/* Série notée sans côté : échauffement d'un exo à rampe bilatérale (mollet unilatéral, 22/10/2026). */
+function bilateralEch(exo, d) {
+  return !!(exo.unilateral && exo.rampe_bilaterale && d.echauffement);
 }
 
 function renderSaisie(x, i, exo, avant) {
@@ -648,7 +659,7 @@ function renderSaisie(x, i, exo, avant) {
   if (enEdition) {
     form.append(h("p", { class: "saisie-titre" }, "Correction de la série"));
   } else {
-    const cote = exo.unilateral ? (d.cote === "G" ? " · gauche" : " · droite") : "";
+    const cote = !exo.unilateral ? "" : bilateralEch(exo, d) ? " · 2 jambes" : d.cote === "G" ? " · gauche" : " · droite";
     const cible = range(exo.cible_series);
     const n = numeroSerie(exo, x, d.cote);
     const etape = d.echauffement ? etapeRampe(exo, x, avant, d.cote) : null;
@@ -657,7 +668,7 @@ function renderSaisie(x, i, exo, avant) {
       : `À noter : série ${n}${cible ? " / " + cible[1] : ""}${cote}${exo.reps_fixes ? ` — ${range(exo.cible_reps)[1]} reps` : ""}`));
   }
 
-  if (exo.unilateral) {
+  if (exo.unilateral && !bilateralEch(exo, d)) {
     form.append(h("div", { class: "seg" }, ["G", "D"].map((c) => h("button", {
       class: d.cote === c ? "selected" : "",
       onclick: () => {
@@ -780,11 +791,11 @@ function construireSerie(exo, d, i) {
   if (hasReps && !(d.reps > 0)) err = "Indique le nombre de reps.";
   else if (hasCharge && d.charge == null) err = exo.unite === "kg" ? "Indique la charge (0 si poids du corps)." : "Indique la distance.";
   else if (hasDuree && !(d.duree_sec > 0)) err = "Indique la durée (chrono ou m:ss).";
-  else if (exo.unilateral && !d.cote) err = "Choisis le côté.";
+  else if (exo.unilateral && !d.cote && !bilateralEch(exo, d)) err = "Choisis le côté.";
   f(i).erreur = err;
   if (err) return null;
   const s = {};
-  if (exo.unilateral) s.cote = d.cote;
+  if (exo.unilateral && !bilateralEch(exo, d)) s.cote = d.cote;
   if (hasReps) s.reps = Math.round(d.reps);
   if (exo.reps_fixes) s.reps = range(exo.cible_reps)[1];
   if (hasCharge) s.charge = d.charge;

@@ -14,7 +14,8 @@
      « Échauffement » sont toujours proposées, sur tous les exercices (demande d'Alix du 07/10).
    - rampe_series : échauffements prévus, pré-remplis dans l'ordre avant la 1re série de travail
      ({ reps, charge } ; une valeur absente = reprise de l'échauffement de la dernière fois).
-     Sur un unilatéral, la liste vaut pour chaque côté.
+     Sur un unilatéral, la liste vaut pour chaque côté, sauf avec rampe_bilaterale.
+   - rampe_bilaterale : sur un unilatéral, l'échauffement se fait les deux jambes ensemble (pas de côté noté)
    - reps_fixes : on valide la série sans saisir les reps (= haut de la cible)
    - charge_lest : la charge est un lest ajouté au poids du corps ; 0 s'affiche « poids du corps »
    - ancien : true → exercice de l'ancien programme, gardé uniquement pour l'historique
@@ -56,7 +57,7 @@ const LIBRARY = {
     saisie: ["reps", "charge", "rir", "technique"],
     nom: "Mollet genou tendu — 1 jambe, escalier", groupe: "mollets", lieu: "maison", unilateral: true, premier_cote: "D", charge_lest: true,
     type_mesure: "reps_charge", reglages: "ceinture lestée + disques, une main au mur · tempo 3-1-3-2 (3 s montée, 1 s en haut, 3 s descente, 2 s en bas)",
-    rampe: "1 série plus légère par jambe avant les 3 séries de travail, pour monter en charge", rampe_series: [{}], rir_cible: "1-2",
+    rampe: "1 série plus légère sur les 2 jambes avant les 3 séries de travail, pour monter en charge", rampe_series: [{}], rampe_bilaterale: true, rir_cible: "1-2",
     cible_series: [3, 3], cible_reps: [6, 8], repos_sec: null, repos_cotes_sec: null,
     consignes: "Charge = lest de la ceinture, hors poids du corps. Talon sous le niveau de la marche en bas, montée maximale en haut. Progression : quand les 3 séries passent à 8 reps à RIR 1, on alourdit et on repart à 6.",
   },
@@ -64,7 +65,7 @@ const LIBRARY = {
     saisie: ["reps", "charge", "rir", "technique"],
     nom: "Mollet genou tendu — 1 jambe, Smith", groupe: "mollets", lieu: "salle", unilateral: true, premier_cote: "D",
     type_mesure: "reps_charge", reglages: "tempo 3-1-3-2 (3 s montée, 1 s en haut, 3 s descente, 2 s en bas)",
-    rampe: "1 série plus légère par jambe avant les 3 séries de travail, pour monter en charge", rampe_series: [{}], rir_cible: "1-2",
+    rampe: "1 série plus légère sur les 2 jambes avant les 3 séries de travail, pour monter en charge", rampe_series: [{}], rampe_bilaterale: true, rir_cible: "1-2",
     cible_series: [3, 3], cible_reps: [6, 8], repos_sec: null, repos_cotes_sec: null,
     consignes: "Talon bas en bas, montée maximale en haut. Progression : quand les 3 séries passent à 8 reps à RIR 1, on alourdit et on repart à 6.",
   },
@@ -205,7 +206,7 @@ const PROGRAMME = {
       { titre: "Pliométrie (rappel, ~40-60 contacts)", slots: ["corde", { variantes: ["pogos_2pieds", "pogos_1jambe", "sauts_unipodaux"] }] },
       { titre: "Mollet tendu + releveur (superset)", slots: [
         { variantes: ["mollet_tendu_uni_maison", "mollet_tendu_uni_smith", "mollet_tendu_smith"], superset: "mollet",
-          surcharge: { cible_series: [2, 2], rampe: "1 série plus légère par jambe avant les 2 séries de travail, pour monter en charge",
+          surcharge: { cible_series: [2, 2], rampe: "1 série plus légère sur les 2 jambes avant les 2 séries de travail, pour monter en charge",
             consignes: "Priorité de la séance. " + REGLE_ENTRETIEN } },
         { exo: "releveur", superset: "mollet",
           surcharge: { cible_series: [2, 2], consignes: "2 × 20 par pied, les 3 dernières reps très dures. La distance au point d'amarrage se règle au ressenti ; la noter comme repère approximatif." } },
