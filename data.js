@@ -19,6 +19,9 @@
    - reps_fixes : on valide la série sans saisir les reps (= haut de la cible) ; avec « reps » dans saisie,
      les reps restent corrigeables en touchant la série
    - series_detail : ce qu'on fait à chaque série de travail (ex. corde : « deux pieds », « pas de course »…)
+   - enchainement : true → effort et repos s'enchaînent tout seuls (un seul appui pour toute la corde) ;
+     chaque série est notée à sa durée cible quand le décompte arrive à zéro (08/11/2026, demande d'Alix)
+   - nom_seance : nom plus court affiché pendant la séance (le nom complet reste dans Drive et l'historique)
    - charge_lest : la charge est un lest ajouté au poids du corps ; 0 s'affiche « poids du corps »
    - ancien : true → exercice de l'ancien programme, gardé uniquement pour l'historique
 
@@ -31,7 +34,7 @@ const LIBRARY = {
      Elle sert d'échauffement et remplace les pogos / sauts, retirés de la séance le même jour.
      « series_detail » : ce qu'on fait à chaque série, affiché dans la saisie. Passage de niveau au feeling. */
   corde_n1: {
-    saisie: ["duree"],
+    saisie: ["duree"], enchainement: true,
     nom: "Corde à sauter — niveau 1", groupe: "pliométrie",
     type_mesure: "temps", reglages: "surface souple",
     cible_series: [4, 4], cible_temps_sec: [45, 45], repos_sec: [30, 30],
@@ -39,7 +42,7 @@ const LIBRARY = {
     consignes: "Échauffement + pliométrie légère. Premier tour facile. Un raté, on relance : ça ne compte pas. Niveau suivant quand les 4 séries passent sans s'arrêter et sans être essoufflé.",
   },
   corde_n2: {
-    saisie: ["duree"],
+    saisie: ["duree"], enchainement: true,
     nom: "Corde à sauter — niveau 2", groupe: "pliométrie",
     type_mesure: "temps", reglages: "surface souple",
     cible_series: [4, 4], cible_temps_sec: [60, 60], repos_sec: [30, 30],
@@ -47,7 +50,7 @@ const LIBRARY = {
     consignes: "Comme le niveau 1, en séries d'1 minute, avec les premiers sauts sur un pied. Niveau suivant quand tout passe sans s'arrêter.",
   },
   corde_n3: {
-    saisie: ["duree"],
+    saisie: ["duree"], enchainement: true,
     nom: "Corde à sauter — niveau 3", groupe: "pliométrie",
     type_mesure: "temps", reglages: "surface souple",
     cible_series: [5, 5], cible_temps_sec: [60, 60], repos_sec: [30, 30],
@@ -55,7 +58,7 @@ const LIBRARY = {
     consignes: "5 minutes de corde au total. Les deux dernières séries font monter le cardio. Niveau suivant quand tout passe sans s'arrêter.",
   },
   corde_n4: {
-    saisie: ["duree"],
+    saisie: ["duree"], enchainement: true,
     nom: "Corde à sauter — niveau 4", groupe: "pliométrie",
     type_mesure: "temps", reglages: "surface souple",
     cible_series: [3, 3], cible_temps_sec: [120, 120], repos_sec: [30, 30],
@@ -94,7 +97,7 @@ const LIBRARY = {
   },
   mollet_tendu_uni_maison: {
     saisie: ["reps", "charge", "rir", "technique"],
-    nom: "Mollet genou tendu — 1 jambe, escalier", groupe: "mollets", lieu: "maison", unilateral: true, premier_cote: "D", charge_lest: true,
+    nom: "Mollet genou tendu — 1 jambe, escalier", nom_seance: "Mollet genou tendu", groupe: "mollets", lieu: "maison", unilateral: true, premier_cote: "D", charge_lest: true,
     type_mesure: "reps_charge", reglages: "ceinture lestée + disques, une main au mur · tempo 3-1-3-2 (3 s montée, 1 s en haut, 3 s descente, 2 s en bas)",
     rampe: "1 série plus légère sur les 2 jambes avant les 3 séries de travail, pour monter en charge", rampe_series: [{}], rampe_bilaterale: true, rir_cible: "1-2",
     cible_series: [3, 3], cible_reps: [6, 8], repos_sec: null, repos_cotes_sec: null,
@@ -228,8 +231,10 @@ const PROGRAMME = {
     blocs: [
       /* v3 (08/11/2026, choix d'Alix) : pogos et sauts retirés ; corde par niveaux, plus longue, en échauffement. */
       { titre: "Corde (échauffement)", slots: [{ variantes: ["corde_n1", "corde_n2", "corde_n3", "corde_n4"] }] },
+      /* 08/11/2026 : le mollet tendu se fait toujours sur une jambe, à l'escalier (Alix) ; variantes Smith retirées
+         de la séance (plus de salle), gardées pour l'historique. */
       { titre: "Mollet tendu + releveur (superset)", slots: [
-        { variantes: ["mollet_tendu_uni_maison", "mollet_tendu_uni_smith", "mollet_tendu_smith"], superset: "mollet" },
+        { exo: "mollet_tendu_uni_maison", superset: "mollet" },
         { exo: "releveur", superset: "mollet" },
       ] },
       /* Mollet fléchi retiré le 11/10/2026 (v2, décision d'Alix) : barre sur les genoux douloureuse et trop légère
@@ -249,7 +254,7 @@ const PROGRAMME = {
       /* v2 (08/11/2026) : comme en fondation, la corde par niveaux remplace pogos et sauts (niveau atteint repris). */
       { titre: "Corde (échauffement)", slots: [{ variantes: ["corde_n1", "corde_n2", "corde_n3", "corde_n4"] }] },
       { titre: "Mollet tendu + releveur (superset)", slots: [
-        { variantes: ["mollet_tendu_uni_maison", "mollet_tendu_uni_smith", "mollet_tendu_smith"], superset: "mollet",
+        { exo: "mollet_tendu_uni_maison", superset: "mollet",
           surcharge: { cible_series: [2, 2], rampe: "1 série plus légère sur les 2 jambes avant les 2 séries de travail, pour monter en charge",
             consignes: "Priorité de la séance. " + REGLE_ENTRETIEN } },
         { exo: "releveur", superset: "mollet",

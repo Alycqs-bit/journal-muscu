@@ -5,7 +5,9 @@ let live = null;        // séance en cours (copie de travail, sauvegardée à c
 let vue = "accueil";
 let ouvert = null;      // page affichée en séance : index de l'exo, ou live.exos.length = « Séance entière »
 let sens = 0;           // sens du dernier changement de page (animation de glissement), remis à 0 après affichage
-let infoOuverte = false; // panneau « ℹ️ Infos » de l'exo affiché
+let feuille = null;      // panneau ouvert par-dessus la page : { type: "infos" | "comment" | "saut" | "seance", i }
+let derniereOuverte = false; // bulle « Dernière fois » dépliée (repliée par défaut, Alix 08/11)
+let dernierTic = null;  // dernier bip de décompte de la corde (évite de biper deux fois la même seconde)
 let edition = null;     // { idx, si } : série en cours de correction
 const flags = {};       // affichages temporaires par exo : { comment, saut, erreur }
 let dernierePhase = null;
@@ -101,6 +103,10 @@ function dateFr(iso) {
 }
 function heure(ts) { return new Date(ts).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }); }
 function nomCourt(exo) { return exo.nom.split(" — ")[1] || exo.nom; }
+/* Nom affiché pendant la séance : plus court quand data.js le prévoit (« nom_seance »). */
+function nomExo(exo) { return exo.nom_seance || exo.nom; }
+/* Une saisie au clavier est en cours : on ne reconstruit pas l'écran (le clavier se fermerait). */
+function saisieEnCours() { return !!(document.activeElement && ["INPUT", "TEXTAREA"].includes(document.activeElement.tagName)); }
 function autreCote(c) { return c === "G" ? "D" : "G"; }
 
 function parseNombre(txt) {
@@ -136,6 +142,8 @@ window.addEventListener("popstate", () => renderAccueil());
 
 function monter(...els) {
   const app = $("app");
+  /* En séance, l'écran tient dans la hauteur du téléphone : jamais besoin de défiler (Alix, 08/11). */
+  app.classList.toggle("vue-seance", vue === "seance");
   app.replaceChildren(...els.flat(Infinity).filter(Boolean));
   renderReposBar();
 }
@@ -222,7 +230,7 @@ function renderAccueil() {
   const consignes = getConsignesCoach();
   if (consignes) {
     els.push(h("p", { class: "coach" }, h("strong", null, "🎯 Consignes du coach "),
-      `(analyse du ${dateFr(consignes.date_seance)}) : ${Object.keys(consignes.exos).length} exercice(s), affichées dans la séance.`));
+      `(analyse du ${dateFr(consignes.date_seance)}) : ${Object.keys(consignes.exos).length} exercice(s), dans « ℹ️ » de chaque exercice pendant la séance.`));
   }
 
   const aRetirer = lsGet("muscu:a_retirer", []);
@@ -321,8 +329,7 @@ async function synchroniserEnArrierePlan() {
     if (Store.getOutbox().length) await envoyerOutbox();
     else await synchroniserDepuisDrive();
     /* Réaffiche pour mettre à jour « dernière fois » et records, sauf si une saisie est en cours. */
-    const saisieEnCours = document.activeElement && ["INPUT", "TEXTAREA"].includes(document.activeElement.tagName);
-    if (Store.getArchivesApp().length > avant && vue === "seance" && !saisieEnCours) renderSeance();
+    if (Store.getArchivesApp().length > avant && vue === "seance" && !saisieEnCours()) renderSeance();
   } catch (err) {
     console.warn("Synchronisation en arrière-plan :", err.message);
   }
@@ -334,11 +341,11 @@ async function chargerConsignesAffichage() {
   const avant = JSON.stringify(getConsignesCoach() && getConsignesCoach().exos);
   try { await chargerConsignesCoach(); } catch (err) { console.warn("Consignes du coach :", err.message); return; }
   const c = getConsignesCoach();
-  const saisieEnCours = document.activeElement && ["INPUT", "TEXTAREA"].includes(document.activeElement.tagName);
-  if (c && JSON.stringify(c.exos) !== avant && vue === "seance" && !saisieEnCours) renderSeance();
+  if (c && JSON.stringify(c.exos) !== avant && vue === "seance" && !saisieEnCours()) renderSeance();
 }
 
-/* Encadré en haut de la séance : d'où viennent les consignes, remarques générales, alerte si elles datent. */
+/* Consignes générales du coach (panneau « ℹ️ » de la page Séance entière depuis le 08/11) : d'où elles viennent,
+   remarques générales, alerte si elles datent. */
 function renderConsignesGenerales() {
   const c = getConsignesCoach();
   if (!c) return null;
@@ -348,7 +355,7 @@ function renderConsignesGenerales() {
   return h("section", { class: "coach-box" + (perimees ? " old" : "") },
     h("p", { class: "label" }, `🎯 Consignes du coach · analyse de la séance du ${dateFr(c.date_seance)}`),
     c.general.map((g) => h("p", null, g)),
-    h("p", { class: "muted small" }, n ? `${n} exercice(s) avec une consigne : elle s'affiche dans sa fiche.` : "Pas de consigne par exercice."),
+    h("p", { class: "muted small" }, n ? `${n} exercice(s) avec une consigne : dans « ℹ️ » de sa page.` : "Pas de consigne par exercice."),
     perimees ? h("p", { class: "small warn-txt" }, `⚠️ Ta séance du ${dateFr(der.date)} n'a pas encore été analysée : ces consignes datent d'avant.`) : null);
 }
 
@@ -398,10 +405,11 @@ async function supprimerSeance(archive, btn, status) {
 
 /* ---------- Séance ---------- */
 
-/* Écran de séance (refait le 08/11/2026, demande d'Alix) : un exercice par page, on passe de l'un à l'autre
+/* Écran de séance (refait le 08/11/2026, demandes d'Alix) : un exercice par page, on passe de l'un à l'autre
    en glissant le doigt (ou avec ‹ ›, ou les pastilles). La dernière page, « Séance entière », porte le
-   commentaire de séance et le bouton Terminer. Seul l'utile pendant une série reste à l'écran ;
-   cible, réglages, consignes, échauffement prévu et records passent derrière « ℹ️ Infos ». */
+   commentaire de séance et le bouton Terminer. Tout tient dans la hauteur de l'écran, sans défiler :
+   seul l'utile pendant une série reste affiché, la saisie en bas (sous le pouce). « Dernière fois » est une
+   bulle repliée ; cible, réglages, consignes du coach, échauffement prévu et records sont dans « ℹ️ ». */
 
 function ouvrirSeance() {
   live = Store.getSeanceLive();
@@ -418,24 +426,25 @@ function premierAFaire() {
   return k >= 0 ? k : live.exos.length;
 }
 
-/* Change de page : sens de l'animation, plus de correction en cours, retour en haut. */
+/* Change de page : sens de l'animation, plus de correction en cours ni de panneau ouvert. */
 function allerPage(k) {
   const n = live.exos.length;
   k = Math.max(0, Math.min(n, k));
+  feuille = null;
+  derniereOuverte = false;
   if (k === ouvert) { renderSeance(); return; }
   sens = ouvert == null || k > ouvert ? 1 : -1;
   ouvert = k;
   edition = null;
-  infoOuverte = false;
   renderSeance();
   window.scrollTo(0, 0);
 }
 
-/* Glisser horizontalement = page suivante / précédente. Un geste surtout vertical reste un défilement,
-   et un geste commencé dans une zone de texte ne change pas de page (sélection de texte). */
+/* Glisser horizontalement = page suivante / précédente. Un geste surtout vertical ne change pas de page,
+   un geste commencé dans une zone de texte non plus (sélection de texte), ni quand un panneau est ouvert. */
 let glisse = null;
 document.addEventListener("touchstart", (ev) => {
-  if (vue !== "seance" || ev.touches.length !== 1) { glisse = null; return; }
+  if (vue !== "seance" || feuille || ev.touches.length !== 1) { glisse = null; return; }
   const t = ev.target;
   if (t && ["INPUT", "TEXTAREA"].includes(t.tagName)) { glisse = null; return; }
   glisse = { x: ev.touches[0].clientX, y: ev.touches[0].clientY };
@@ -453,20 +462,16 @@ function renderSeance() {
   const m = Store.getModele(live.modele);
   const n = live.exos.length;
   if (ouvert == null || ouvert > n) ouvert = premierAFaire();
-  const head = h("header", { class: "seance-head" },
-    h("div", null, h("h1", null, m.nom), h("p", { class: "muted small" }, `${dateFr(live.date)} · depuis ${heure(live.debut_ts)}`)),
-    h("div", { class: "row tight" },
-      Ecran.supporte() ? h("button", {
-        class: "icon-btn" + (Ecran.voulu() ? " on" : ""),
-        title: "Empêche le téléphone de se mettre en veille pendant la séance",
-        onclick: () => { Ecran.setVoulu(!Ecran.voulu()); renderSeance(); },
-      }, Ecran.voulu() ? "Écran ✓" : "Écran ✗") : null,
-      h("button", { class: "btn-secondary", onclick: () => { vue = "fin"; renderFin(); window.scrollTo(0, 0); } }, "Terminer")));
-
   const page = h("div", { class: "page" + (sens > 0 ? " from-right" : sens < 0 ? " from-left" : "") },
     ouvert < n ? renderPageExo(live.exos[ouvert], ouvert) : renderPageSeance(m));
   sens = 0;
-  monter(head, renderNavPages(), ouvert === 0 ? renderConsignesGenerales() : null, page);
+  monter(renderNavPages(), page, renderFeuille(m));
+  /* Commentaire : le clavier s'ouvre directement (le focus doit suivre l'appui, sinon le téléphone l'ignore). */
+  if (feuille && feuille.focus) {
+    feuille.focus = false;
+    const ta = document.querySelector(".feuille textarea");
+    if (ta) ta.focus();
+  }
 }
 
 /* Pastilles : une par exercice (couleur = état), puis « ✓ » pour la page Séance entière. */
@@ -484,7 +489,7 @@ function renderNavPages() {
     h("div", { class: "dots" },
       live.exos.map((x, k) => h("button", {
         class: "dot " + etatPage(k) + (k === ouvert ? " current" : ""),
-        "aria-label": Store.getExo(x.exo_id).nom,
+        "aria-label": nomExo(Store.getExo(x.exo_id)),
         onclick: () => allerPage(k),
       }, String(k + 1))),
       h("button", { class: "dot fin" + (ouvert === n ? " current" : ""), "aria-label": "Séance entière", onclick: () => allerPage(n) }, "✓")),
@@ -493,32 +498,49 @@ function renderNavPages() {
 
 function renderPageExo(x, i) {
   const exo = Store.getExo(x.exo_id, live.modele);
-  const partenaire = partenaireSuperset(i);
+  const coach = getConsignesCoach();
+  const aConsigne = !!(coach && coach.exos[exo.id]);
   const card = h("div", { class: "exo-card open" + (x.statut === "saute" ? " saute" : "") });
   card.append(h("div", { class: "exo-header" },
-    h("span", { class: "exo-titre" }, h("span", { class: "exo-nom" }, exo.nom), badgeExo(exo, x)),
-    partenaire != null ? h("span", { class: "exo-meta" }, `↔ superset avec ${Store.getExo(live.exos[partenaire].exo_id).nom.split(" — ")[0].toLowerCase()}`) : null));
+    h("div", { class: "exo-titre" },
+      h("span", { class: "exo-nom" }, nomExo(exo)),
+      badgeExo(exo, x),
+      h("button", {
+        class: "icon-act" + (x.commentaire ? " has" : ""), "aria-label": "Commentaire sur l'exercice",
+        onclick: () => ouvrirFeuille("comment", i),
+      }, x.commentaire ? "💬✓" : "💬"),
+      /* Liseré violet : le coach a laissé une consigne pour cet exercice (lisible dans « ℹ️ »). */
+      h("button", { class: "icon-act" + (aConsigne ? " coach-dot" : ""), "aria-label": "Infos de l'exercice", onclick: () => ouvrirFeuille("infos", i) }, "ℹ️"))));
   card.append(renderCorps(x, i, exo));
   return card;
 }
 
-/* Dernière page : commentaire de séance, Terminer, retour à l'accueil. */
+/* Dernière page : commentaire de séance, Terminer, écran allumé, retour à l'accueil. */
 function renderPageSeance(m) {
   const box = h("div", { class: "exo-card open" });
-  box.append(h("div", { class: "exo-header" }, h("span", { class: "exo-nom" }, "Séance entière")));
+  box.append(h("div", { class: "exo-header" },
+    h("div", { class: "exo-titre" },
+      h("span", { class: "exo-nom" }, "Séance entière"),
+      h("button", { class: "icon-act", "aria-label": "Infos de séance et consignes du coach", onclick: () => ouvrirFeuille("seance", null) }, "ℹ️"))));
   const body = h("div", { class: "exo-body" });
   const faits = live.exos.filter((x) => seriesTravail(x.series).length).length;
-  body.append(h("p", { class: "muted" }, `${faits} exercice(s) fait(s) sur ${live.exos.length}`));
-  if (m.consigne) body.append(h("p", { class: "consignes" }, "📌 " + m.consigne));
-  const coach = renderConsignesGenerales();
-  if (coach) body.append(coach);
+  body.append(h("p", { class: "muted" }, `${m.nom} · ${dateFr(live.date)} · depuis ${heure(live.debut_ts)}`));
+  body.append(h("p", null, `${faits} exercice(s) fait(s) sur ${live.exos.length}`));
   body.append(h("textarea", {
-    class: "comment-box", placeholder: "Commentaire sur toute la séance (forme, contexte, sensations…) — repris à la fin",
+    class: "comment-box seance", placeholder: "Commentaire sur toute la séance (forme, contexte, sensations…) — repris à la fin",
     value: live.commentaire_seance || "",
     oninput: (ev) => { live.commentaire_seance = ev.target.value; save(); },
   }));
-  body.append(h("button", { class: "btn-primary btn-block", onclick: () => { vue = "fin"; renderFin(); window.scrollTo(0, 0); } }, "Terminer la séance"));
-  body.append(h("button", { class: "btn-ghost btn-block", onclick: retourAccueil }, "← Accueil (la séance reste en cours)"));
+  const bas = h("div", { class: "exo-bas" });
+  if (Ecran.supporte()) {
+    bas.append(h("button", {
+      class: "toggle" + (Ecran.voulu() ? " on" : ""),
+      onclick: () => { Ecran.setVoulu(!Ecran.voulu()); renderSeance(); },
+    }, Ecran.voulu() ? "☑ Écran toujours allumé pendant la séance" : "☐ Écran toujours allumé pendant la séance"));
+  }
+  bas.append(h("button", { class: "btn-primary btn-block", onclick: () => { vue = "fin"; renderFin(); window.scrollTo(0, 0); } }, "Terminer la séance"));
+  bas.append(h("button", { class: "btn-ghost btn-block", onclick: retourAccueil }, "← Accueil (la séance reste en cours)"));
+  body.append(bas);
   box.append(body);
   return box;
 }
@@ -537,9 +559,10 @@ function badgeExo(exo, x) {
 
 function renderCorps(x, i, exo) {
   const body = h("div", { class: "exo-body" });
+  const circuitIci = !!(live.circuit && live.circuit.idx === i);
 
-  /* Choix de la variante (lieu, niveau de corde…) : seulement avant la 1re série. */
-  if (x.variantes && !x.series.length) {
+  /* Choix de la variante (niveau de corde…) : seulement avant la 1re série. */
+  if (x.variantes && !x.series.length && !circuitIci) {
     body.append(h("div", { class: "chips" }, x.variantes.map((v) => {
       const ve = Store.getExo(v);
       return h("button", {
@@ -555,51 +578,96 @@ function renderCorps(x, i, exo) {
     })));
   }
 
-  const consignes = getConsignesCoach();
-  if (consignes && consignes.exos[exo.id]) body.append(h("p", { class: "coach" }, h("strong", null, "🎯 Coach : "), consignes.exos[exo.id]));
-
   const avant = Store.getPerfPassee(exo.id);
   body.append(renderDerniereFois(exo, avant));
   if (x.series.length) body.append(renderListeSeries(x, i, exo));
+
+  /* En bas de l'écran, sous le pouce : ligne du superset, puis la saisie (ou le chrono de la corde). */
+  const bas = h("div", { class: "exo-bas" + (exo.enchainement && !(edition && edition.idx === i) ? " plein" : "") });
   const attente = estMeneur(i) ? suiveurEnAttente(i) : null;
-  if (attente) body.append(renderSuiveurEnAttente(attente));
-  if (x.statut !== "saute") body.append(renderSaisie(x, i, exo, avant));
-
-  const actions = h("div", { class: "exo-actions" },
-    h("button", { class: "btn-ghost" + (x.commentaire ? " has" : ""), onclick: () => { f(i).comment = !f(i).comment; renderSeance(); } }, x.commentaire ? "💬 ✓" : "💬 Commentaire"));
+  if (attente) bas.append(renderSuiveurEnAttente(attente));
+  const enEdition = edition && edition.idx === i;
   if (x.statut === "saute") {
-    actions.append(h("button", { class: "btn-ghost", onclick: () => { x.statut = "a_faire"; x.raison = null; save(); renderSeance(); } }, "Annuler « pas fait »"));
-  } else if (!seriesTravail(x.series).length) {
-    actions.append(h("button", { class: "btn-ghost", onclick: () => { f(i).saut = !f(i).saut; renderSeance(); } }, "Pas fait"));
+    bas.append(h("div", { class: "saute-box" },
+      h("p", { class: "muted" }, `Pas fait${x.raison ? " · " + x.raison : ""}`),
+      h("button", { class: "btn-ghost", onclick: () => { x.statut = "a_faire"; x.raison = null; save(); renderSeance(); } }, "Annuler « pas fait »")));
+  } else if (enEdition) {
+    bas.append(renderSaisie(x, i, exo, avant));
+  } else if (exo.enchainement) {
+    bas.append(renderCircuit(x, i, exo));
+  } else if (exoTermine(i) && !f(i).enPlus) {
+    /* Exercice fini : la saisie se range (une série de plus reste possible d'un appui). */
+    bas.append(h("button", { class: "btn-ghost btn-block", onclick: () => { f(i).enPlus = true; renderSeance(); } }, "＋ Une série de plus"));
+  } else {
+    bas.append(renderSaisie(x, i, exo, avant));
   }
-  actions.append(h("button", { class: "btn-ghost" + (infoOuverte ? " has" : ""), onclick: () => { infoOuverte = !infoOuverte; renderSeance(); } }, "ℹ️ Infos"));
-  body.append(actions);
-
-  if (f(i).saut && x.statut !== "saute") {
-    body.append(h("div", { class: "chips" }, RAISONS_SAUT.map((r) => h("button", {
-      class: "chip",
-      onclick: () => {
-        x.statut = "saute"; x.raison = r.label; f(i).saut = false; save();
-        const suite = exoSuivantSiTermine(i);
-        if (suite != null) allerPage(suite); else renderSeance();
-      },
-    }, r.label))));
-  }
-  if (f(i).comment || x.statut === "saute" && x.commentaire) {
-    body.append(h("textarea", {
-      class: "comment-box",
-      placeholder: "Commentaire sur l'exercice…",
-      value: x.commentaire || "",
-      oninput: (ev) => { x.commentaire = ev.target.value; save(); },
-    }));
-  }
-  if (infoOuverte) body.append(renderInfos(x, i, exo));
+  body.append(bas);
   return body;
 }
 
-/* Tout ce qu'on connaît par cœur et qu'on ne lit plus en séance (Alix, 08/11) : à la demande. */
+/* ---------- Panneaux par-dessus la page (Infos, commentaire, « pas fait ») ---------- */
+
+function ouvrirFeuille(type, i) {
+  feuille = { type, i, focus: type === "comment" };
+  derniereOuverte = false;
+  renderSeance();
+}
+function fermerFeuille() {
+  feuille = null;
+  renderSeance();
+}
+
+function renderFeuille(m) {
+  if (!feuille || vue !== "seance") return null;
+  const x = feuille.i != null ? live.exos[feuille.i] : null;
+  if (feuille.i != null && !x) { feuille = null; return null; }
+  const i = feuille.i;
+  const exo = x ? Store.getExo(x.exo_id, live.modele) : null;
+  const box = h("div", { class: "feuille" });
+  const tete = (titre) => h("div", { class: "feuille-tete" }, h("strong", null, titre),
+    h("button", { class: "btn-ghost", "aria-label": "Fermer", onclick: fermerFeuille }, "✕"));
+
+  if (feuille.type === "infos") {
+    box.append(tete(nomExo(exo)), renderInfos(x, i, exo));
+  } else if (feuille.type === "comment") {
+    box.append(tete(`💬 ${nomExo(exo)}`),
+      h("textarea", {
+        class: "comment-box", placeholder: "Commentaire sur l'exercice…",
+        value: x.commentaire || "",
+        oninput: (ev) => { x.commentaire = ev.target.value; save(); },
+      }),
+      h("button", { class: "btn-primary btn-block", onclick: fermerFeuille }, "OK"));
+  } else if (feuille.type === "saut") {
+    box.append(tete(`Pas fait : ${nomExo(exo)}`), h("p", { class: "muted small" }, "Pourquoi ?"),
+      h("div", { class: "chips" }, RAISONS_SAUT.map((r) => h("button", {
+        class: "chip",
+        onclick: () => {
+          x.statut = "saute"; x.raison = r.label;
+          if (live.circuit && live.circuit.idx === i) live.circuit = null;
+          save();
+          const suite = exoSuivantSiTermine(i);
+          if (suite != null) allerPage(suite); else fermerFeuille();
+        },
+      }, r.label))));
+  } else if (feuille.type === "seance") {
+    box.append(tete("Infos de séance"));
+    const coach = renderConsignesGenerales();
+    box.append(coach || h("p", { class: "muted" }, "Pas de consignes du coach pour l'instant."));
+    if (m.consigne) box.append(h("p", { class: "consignes" }, "📌 " + m.consigne));
+    if (m.echauffement) box.append(h("p", { class: "consignes" }, "Échauffement : " + m.echauffement));
+  }
+  const fond = h("div", { class: "feuille-fond", onclick: (ev) => { if (ev.target === fond) fermerFeuille(); } }, box);
+  return fond;
+}
+
+/* Tout ce qu'on connaît par cœur et qu'on ne lit plus en séance (Alix, 08/11) : à la demande.
+   La consigne du coach pour cet exercice vient en premier. */
 function renderInfos(x, i, exo) {
   const box = h("div", { class: "infos" });
+  const coach = getConsignesCoach();
+  if (coach && coach.exos[exo.id]) {
+    box.append(h("p", { class: "coach" }, h("strong", null, `🎯 Coach (analyse du ${dateFr(coach.date_seance)}) : `), coach.exos[exo.id]));
+  }
   const cible = formatCible(exo);
   if (cible) box.append(h("p", null, h("strong", null, "Cible : "), cible));
   if (exo.series_detail) box.append(h("p", null, h("strong", null, "Déroulé : "), exo.series_detail.map((d, k) => `${k + 1}. ${d}`).join(" · ")));
@@ -607,7 +675,7 @@ function renderInfos(x, i, exo) {
   if (exo.rampe) box.append(h("p", null, h("strong", null, "Échauffement prévu : "), exo.rampe, " (pré-rempli dans la saisie)"));
   const partenaire = partenaireSuperset(i);
   if (partenaire != null) {
-    const autre = Store.getExo(live.exos[partenaire].exo_id).nom;
+    const autre = nomExo(Store.getExo(live.exos[partenaire].exo_id));
     box.append(h("p", null, h("strong", null, "Superset : "), estMeneur(i)
       ? `après chaque série, une ligne « ${autre} » apparaît ici pour le noter en un appui. Pas de repos à attendre, on enchaîne.`
       : `se note d'un appui depuis la page de « ${autre} ». Ici seulement pour changer les valeurs.`));
@@ -624,68 +692,87 @@ function renderInfos(x, i, exo) {
   return box;
 }
 
-/* « Dernière fois » en grille lisible (08/11, Alix) : une ligne par tour, une colonne par côté ;
-   la charge en tête si elle est la même partout, sinon dans chaque case. Repliable d'un appui
-   (le choix est gardé pour tous les exercices). */
+/* « Dernière fois » : une ligne repliée (date, charge commune) ; un appui ouvre la grille en bulle par-dessus
+   la page (une ligne par tour, une colonne par côté ; la charge dans chaque case si elle change). */
 function renderDerniereFois(exo, avant) {
   if (!avant) return h("p", { class: "muted small" }, "Dernière fois : jamais fait.");
-  const voir = lsGet("muscu:voir_derniere", true);
   const travail = seriesTravail(avant.entry.series);
   const kg = exo.type_mesure === "reps_charge";
   const charges = [...new Set(travail.map((s) => (s.charge == null ? null : s.charge)))];
   const commune = kg && charges.length === 1 ? charges[0] : undefined;
   const cellule = (s) => (!s ? "—" : commune !== undefined ? String(s.reps ?? "?") : formatSerie(exo, s));
   const enTete = commune != null ? ` · ${formatCharge(exo, commune)}` : "";
-  const box = h("div", { class: "bandeau" });
-  box.append(h("button", {
-    class: "derniere-btn",
-    onclick: () => { lsSet("muscu:voir_derniere", !voir); renderSeance(); },
-  }, h("span", { class: "label" }, `Dernière fois · ${dateFr(avant.date)}${enTete}`), h("span", { class: "muted" }, voir ? "▴" : "▾")));
-  if (!voir) return box;
+  const wrap = h("div", { class: "derniere" });
+  wrap.append(h("button", {
+    class: "derniere-btn" + (derniereOuverte ? " open" : ""),
+    onclick: () => { derniereOuverte = !derniereOuverte; renderSeance(); },
+  }, h("span", { class: "label" }, `Dernière fois · ${dateFr(avant.date)}${enTete}`), h("span", { class: "muted" }, derniereOuverte ? "▴" : "▾")));
+  if (!derniereOuverte) return wrap;
 
+  const pop = h("div", { class: "derniere-pop", onclick: () => { derniereOuverte = false; renderSeance(); } });
   if (exo.unilateral && travail.some((s) => s.cote)) {
     const ordre = exo.premier_cote === "D" ? ["D", "G"] : ["G", "D"];
     const cols = ordre.map((c) => travail.filter((s) => s.cote === c));
     const lignes = Math.max(...cols.map((c) => c.length));
-    box.append(h("table", { class: "grille" },
+    pop.append(h("table", { class: "grille" },
       h("thead", null, h("tr", null, h("th", null, ""), ordre.map((c) => h("th", null, c === "G" ? "Gauche" : "Droite")))),
       h("tbody", null, Array.from({ length: lignes }, (_, k) => h("tr", null,
         h("td", { class: "muted" }, String(k + 1)), cols.map((c) => h("td", null, cellule(c[k]))))))));
   } else {
-    box.append(h("p", { class: "grille-ligne" }, travail.map((s) => cellule(s)).join("  ·  ")));
+    pop.append(h("p", { class: "grille-ligne" }, travail.map((s) => cellule(s)).join("  ·  ")));
   }
   const notes = [avant.entry.commentaire, ...avant.entry.series.map((s) => s.commentaire)].filter(Boolean);
-  if (notes.length) box.append(h("p", { class: "note" }, "💬 " + notes.join(" · ")));
-  return box;
+  if (notes.length) pop.append(h("p", { class: "note" }, "💬 " + notes.join(" · ")));
+  wrap.append(pop);
+  return wrap;
 }
 
+/* Séries du jour, compactes : échauffements sur une ligne ; unilatéral en grille (tours × côtés, comme
+   « dernière fois ») ; sinon des cases côte à côte. Un appui sur une case = la corriger. */
 function renderListeSeries(x, i, exo) {
-  const list = h("div", { class: "series" });
-  let n = 0;
-  x.series.forEach((s, si) => {
+  const wrap = h("div", { class: "series" });
+  const cellule = (s, si, label) => {
     const enEdition = edition && edition.idx === i && edition.si === si;
     /* Série de travail sans RIR ou sans technique alors que l'exo les demande : marqué en rouge, à compléter d'un appui. */
     const veutRir = !s.echauffement && champ(exo, "rir") && champ(exo, "reps") && !exo.reps_fixes;
     const veutTech = !s.echauffement && champ(exo, "technique");
     const tags = [];
-    if (s.rir != null) tags.push(`RIR ${texteRir(s.rir)}  `);
+    if (s.rir != null) tags.push(`RIR ${texteRir(s.rir)} `);
     else if (veutRir) tags.push(h("span", { class: "manque" }, "RIR ?"), " ");
-    if (s.technique) tags.push(s.technique === "propre" ? "🟢  " : "🟡  ");
-    else if (veutTech) tags.push(h("span", { class: "manque rond", title: "Technique non notée" }, "?"), " ");
-    if (s.repos_avant_sec != null) tags.push(`⏱ ${formatDuree(s.repos_avant_sec)}${s.repos_precision === "exact" ? "" : "~"}`);
-    list.append(h("button", {
-      class: "serie-row" + (s.echauffement ? " ech" : "") + (enEdition ? " editing" : ""),
+    if (s.technique) tags.push(s.technique === "propre" ? "🟢" : "🟡");
+    else if (veutTech) tags.push(h("span", { class: "manque rond", title: "Technique non notée" }, "?"));
+    if (s.commentaire) tags.push(" 💬");
+    return h("button", {
+      class: "serie-cell" + (s.echauffement ? " ech" : "") + (enEdition ? " editing" : ""),
       onclick: () => {
         if (enEdition) { edition = null; } else { edition = { idx: i, si }; x._edit = Object.assign({}, s); }
         renderSeance();
       },
     },
-      h("span", { class: "num" }, s.echauffement ? "éch." : `${++n}`),
-      h("span", { class: "main" }, (s.cote ? s.cote + " · " : "") + formatSerie(exo, s)),
-      h("span", { class: "tags" }, tags),
-      s.commentaire ? h("span", { class: "serie-note" }, "💬 " + s.commentaire) : null));
-  });
-  return list;
+      label ? h("span", { class: "num" }, label) : null,
+      h("span", { class: "main" }, formatSerie(exo, s)),
+      tags.length ? h("span", { class: "tags" }, tags) : null);
+  };
+  const toutes = x.series.map((s, si) => ({ s, si }));
+  const ech = toutes.filter(({ s }) => s.echauffement);
+  const travail = toutes.filter(({ s }) => !s.echauffement);
+  if (ech.length) wrap.append(h("div", { class: "serie-cells" }, h("span", { class: "label" }, "Éch."), ech.map(({ s, si }) => cellule(s, si, s.cote || null))));
+  if (!travail.length) return wrap;
+  if (exo.unilateral && travail.some(({ s }) => s.cote)) {
+    const ordre = exo.premier_cote === "D" ? ["D", "G"] : ["G", "D"];
+    const cols = ordre.map((c) => travail.filter(({ s }) => s.cote === c));
+    const lignes = Math.max(...cols.map((c) => c.length));
+    const grille = h("div", { class: "grille-jour" }, h("span", null, ""),
+      ordre.map((c) => h("span", { class: "grille-th" }, c === "G" ? "Gauche" : "Droite")));
+    for (let k = 0; k < lignes; k++) {
+      grille.append(h("span", { class: "grille-num" }, String(k + 1)));
+      cols.forEach((c) => grille.append(c[k] ? cellule(c[k].s, c[k].si) : h("span", { class: "grille-vide" }, "—")));
+    }
+    wrap.append(grille);
+  } else {
+    wrap.append(h("div", { class: "serie-cells" }, travail.map(({ s, si }, k) => cellule(s, si, String(k + 1)))));
+  }
+  return wrap;
 }
 
 /* Valeurs proposées pour une série de travail : la dernière série de travail du jour, sinon la 1re de la dernière fois. */
@@ -756,6 +843,12 @@ function bilateralEch(exo, d) {
   return !!(exo.unilateral && exo.rampe_bilaterale && d.echauffement);
 }
 
+/* Saisie compacte (08/11, pour tenir sans défiler) : une ligne par champ, étiquette à gauche ;
+   RIR et technique sur la même ligne ; côté et case « Éch. » dans la ligne du titre. */
+function ligneSaisie(label, controle) {
+  return h("div", { class: "ligne" }, h("span", { class: "ligne-label" }, label), controle);
+}
+
 function renderSaisie(x, i, exo, avant) {
   const enEdition = edition && edition.idx === i;
   const d = enEdition ? x._edit : (x._draft || (x._draft = defaultDraft(exo, x, avant)));
@@ -763,22 +856,34 @@ function renderSaisie(x, i, exo, avant) {
   const hasCharge = champ(exo, "charge");
   const hasDuree = champ(exo, "duree");
   const form = h("div", { class: "saisie" + (enEdition ? " editing" : "") });
-  if (enEdition) {
-    form.append(h("p", { class: "saisie-titre" }, "Correction de la série"));
-  } else {
-    const cote = !exo.unilateral ? "" : bilateralEch(exo, d) ? " · 2 jambes" : d.cote === "G" ? " · gauche" : " · droite";
-    const cible = range(exo.cible_series);
-    const n = numeroSerie(exo, x, d.cote);
-    const etape = d.echauffement ? etapeRampe(exo, x, avant, d.cote) : null;
-    form.append(h("p", { class: "saisie-titre" + (d.echauffement ? " ech" : "") }, d.echauffement
-      ? `À noter : échauffement${etape ? ` ${etape.numero} / ${etape.total} prévu${etape.total > 1 ? "s" : ""}` : ""}${cote}`
-      : `À noter : série ${n}${cible ? " / " + cible[1] : ""}${cote}${exo.reps_fixes ? ` — ${range(exo.cible_reps)[1]} reps` : ""}`));
-    const detail = !d.echauffement ? detailSerieN(exo, n) : null;
-    if (detail) form.append(h("p", { class: "deroule" }, detail));
-  }
 
+  const tete = h("div", { class: "saisie-tete" });
+  let n = null;
+  if (enEdition) {
+    tete.append(h("span", { class: "saisie-titre" }, "Correction de la série"));
+  } else {
+    const cible = range(exo.cible_series);
+    n = numeroSerie(exo, x, d.cote);
+    const etape = d.echauffement ? etapeRampe(exo, x, avant, d.cote) : null;
+    tete.append(h("span", { class: "saisie-titre" + (d.echauffement ? " ech" : "") }, d.echauffement
+      ? `Échauffement${etape ? ` ${etape.numero}/${etape.total}` : ""}${bilateralEch(exo, d) ? " · 2 jambes" : ""}`
+      : `Série ${n}${cible ? " / " + cible[1] : ""}${exo.reps_fixes ? ` · ${range(exo.cible_reps)[1]} reps` : ""}`));
+  }
+  const reglages = h("div", { class: "row tight" });
+  /* Case « Éch. » : jusqu'à la 1re série de travail seulement (Alix, 08/11), et en correction. */
+  if (enEdition || !seriesTravail(x.series).length) {
+    reglages.append(h("button", {
+      class: "toggle mini" + (d.echauffement ? " on" : ""),
+      onclick: () => {
+        if (enEdition) d.echauffement = !d.echauffement;
+        else basculerEchauffement(exo, x, d);
+        save();
+        renderSeance();
+      },
+    }, d.echauffement ? "☑ Éch." : "☐ Éch."));
+  }
   if (exo.unilateral && !bilateralEch(exo, d)) {
-    form.append(h("div", { class: "seg" }, ["G", "D"].map((c) => h("button", {
+    reglages.append(h("div", { class: "seg mini" }, ["G", "D"].map((c) => h("button", {
       class: d.cote === c ? "selected" : "",
       onclick: () => {
         d.cote = c;
@@ -793,6 +898,10 @@ function renderSaisie(x, i, exo, avant) {
       },
     }, c === "G" ? "Gauche" : "Droite"))));
   }
+  tete.append(reglages);
+  form.append(tete);
+  const detail = !enEdition && !d.echauffement ? detailSerieN(exo, n) : null;
+  if (detail) form.append(h("p", { class: "deroule" }, detail));
 
   if (hasReps) {
     const input = h("input", {
@@ -800,7 +909,7 @@ function renderSaisie(x, i, exo, avant) {
       oninput: (ev) => { d.reps = parseNombre(ev.target.value); save(); },
     });
     const step = (delta) => { d.reps = Math.max(0, (d.reps || 0) + delta); input.value = d.reps; save(); };
-    form.append(h("div", { class: "field" }, h("span", { class: "field-label" }, "Reps"),
+    form.append(ligneSaisie("Reps",
       h("div", { class: "stepper" }, h("button", { onclick: () => step(-1) }, "−"), input, h("button", { onclick: () => step(1) }, "+"))));
   }
 
@@ -815,12 +924,9 @@ function renderSaisie(x, i, exo, avant) {
       input.value = fmtNum(d.charge);
       save();
     };
-    form.append(h("div", { class: "field" },
-      h("span", { class: "field-label" }, exo.unite !== "kg" ? `Distance (${exo.unite})` : exo.charge_lest ? "Lest (kg) — 0 = poids du corps" : "Charge (kg)"),
-      exo.charge_lest ? h("button", {
-        class: "chip" + (d.charge === 0 ? " selected" : ""),
-        onclick: () => { d.charge = 0; save(); renderSeance(); },
-      }, "Poids du corps") : null,
+    /* Lest : 0 = poids du corps (le bouton « − » descend jusqu'à 0). */
+    const label = exo.unite !== "kg" ? `Dist. (${exo.unite})` : exo.charge_lest ? h("span", null, "Lest kg", h("br"), h("small", null, "0 = PDC")) : "Kg";
+    form.append(ligneSaisie(label,
       h("div", { class: "stepper wide" },
         h("button", { class: "small", onclick: () => step(-p2) }, `−${fmtNum(p2)}`),
         h("button", { class: "small", onclick: () => step(-p1) }, `−${fmtNum(p1)}`),
@@ -839,44 +945,27 @@ function renderSaisie(x, i, exo, avant) {
       }, effortEnCours
         ? [h("span", { id: `effort-${i}`, class: "effort-temps" }, "…"), h("span", null, "■ Terminer — la série est enregistrée")]
         : [h("span", { class: "effort-temps" }, "▶"), h("span", null, `Lancer la série${objectif ? " · bip à " + formatDuree(objectif[0]) : ""}`)]));
-
     }
-    form.append(h("div", { class: "field" }, h("span", { class: "field-label" }, enEdition ? "Durée" : "Ou saisir la durée à la main"),
-      h("input", {
-        class: "num-input", inputmode: "decimal", placeholder: "m:ss", value: dureeInput(d.duree_sec), "aria-label": "Durée",
-        oninput: (ev) => { d.duree_sec = parseDuree(ev.target.value); save(); },
-      })));
+    form.append(ligneSaisie("Durée", h("input", {
+      class: "num-input", inputmode: "decimal", placeholder: "m:ss", value: dureeInput(d.duree_sec), "aria-label": "Durée",
+      oninput: (ev) => { d.duree_sec = parseDuree(ev.target.value); save(); },
+    })));
   }
 
   /* RIR et technique : pas sur un échauffement (jamais jugé, Alix 08/11 : moins d'infos à l'écran). */
-  if (hasReps && !exo.reps_fixes && champ(exo, "rir") && !d.echauffement) {
-    form.append(h("div", { class: "field" }, h("span", { class: "field-label" }, "RIR"),
+  const avecRir = hasReps && !exo.reps_fixes && champ(exo, "rir") && !d.echauffement;
+  const avecTech = champ(exo, "technique") && !d.echauffement;
+  if (avecRir || avecTech) {
+    form.append(ligneSaisie(avecRir ? "RIR" : "Tech.", h("div", { class: "duo" },
       /* 0 / 1 / « 2 ou + » (11/10, Alix : au-delà de 2 l'estimation ne veut plus rien dire). « 2+ » est noté 2. */
-      h("div", { class: "seg" }, [0, 1, 2].map((n) => h("button", {
-        class: d.rir === n ? "selected" : "",
-        onclick: () => { d.rir = d.rir === n ? null : n; save(); renderSeance(); },
-      }, n === 2 ? "2 ou +" : String(n))))));
+      avecRir ? h("div", { class: "seg" }, [0, 1, 2].map((v) => h("button", {
+        class: d.rir === v ? "selected" : "",
+        onclick: () => { d.rir = d.rir === v ? null : v; save(); renderSeance(); },
+      }, v === 2 ? "2+" : String(v)))) : null,
+      avecTech ? h("div", { class: "seg tech" },
+        h("button", { class: d.technique === "propre" ? "selected ok" : "", "aria-label": "Technique propre", onclick: () => { d.technique = d.technique === "propre" ? null : "propre"; save(); renderSeance(); } }, "🟢"),
+        h("button", { class: d.technique === "degradee" ? "selected ko" : "", "aria-label": "Technique dégradée", onclick: () => { d.technique = d.technique === "degradee" ? null : "degradee"; save(); renderSeance(); } }, "🟡")) : null)));
   }
-
-  if (champ(exo, "technique") && !d.echauffement) {
-    form.append(h("div", { class: "field" }, h("span", { class: "field-label" }, "Technique"),
-      h("div", { class: "seg" },
-        h("button", { class: d.technique === "propre" ? "selected ok" : "", onclick: () => { d.technique = d.technique === "propre" ? null : "propre"; save(); renderSeance(); } }, "🟢 Propre"),
-        h("button", { class: d.technique === "degradee" ? "selected ko" : "", onclick: () => { d.technique = d.technique === "degradee" ? null : "degradee"; save(); renderSeance(); } }, "🟡 Dégradée"))));
-  }
-
-  /* Plus de note par série (11/10, Alix : inutile) ; le commentaire d'exercice reste. */
-  if (enEdition || !seriesTravail(x.series).length) form.append(h("div", { class: "row" },
-    h("button", {
-      class: "toggle" + (d.echauffement ? " on" : ""),
-      onclick: () => {
-        if (enEdition) d.echauffement = !d.echauffement;
-        else basculerEchauffement(exo, x, d);
-        save();
-        renderSeance();
-      },
-    }, d.echauffement ? "☑ Échauffement" : "☐ Échauffement"),
-  ));
 
   if (f(i).erreur) form.append(h("p", { class: "erreur" }, f(i).erreur));
 
@@ -886,8 +975,9 @@ function renderSaisie(x, i, exo, avant) {
       h("button", { class: "btn-ghost", onclick: () => { edition = null; f(i).erreur = null; renderSeance(); } }, "Annuler"),
       h("button", { class: "btn-primary", onclick: () => enregistrerCorrection(x, i, exo) }, "Enregistrer")));
   } else {
-    form.append(h("div", { class: "row" },
-      h("button", { class: "btn-primary grow", onclick: () => { debloquerSon(); validerSerie(x, i, exo); } },
+    form.append(h("div", { class: "row nowrap" },
+      !seriesTravail(x.series).length ? h("button", { class: "btn-ghost pas-fait", onclick: () => ouvrirFeuille("saut", i) }, "Pas fait") : null,
+      h("button", { class: "btn-primary grow enregistrer", onclick: () => { debloquerSon(); validerSerie(x, i, exo); } },
         d.echauffement ? "Enregistrer l'échauffement" : `Enregistrer la série ${numeroSerie(exo, x, d.cote)}`)));
   }
   return form;
@@ -935,7 +1025,7 @@ function validerSerie(x, i, exo) {
   const partenaire = suite != null || serie.echauffement || estMeneur(i) ? null : partenaireSuperset(i);
   const cible = suite != null ? suite : partenaire;
   const complete = !serie.echauffement && suite == null && live.exos.every((y, k) => exoTermine(k));
-  toast(message + (suite != null ? ` → ${Store.getExo(live.exos[suite].exo_id).nom}` : complete ? " · séance complète ✓" : ""));
+  toast(message + (suite != null ? ` → ${nomExo(Store.getExo(live.exos[suite].exo_id))}` : complete ? " · séance complète ✓" : ""));
   save();
   vibrer(30);
   if (cible != null) allerPage(cible);
@@ -1024,7 +1114,7 @@ function suiveurFait(a) {
   y._draft = Object.assign({}, y._draft || {}, { cote: autreCote(a.cote), reps: a.reps, charge: a.charge, commentaire: "" });
   const suite = exoSuivantSiTermine(a.j);
   toast(`✓ ${a.exo.nom.split(" — ")[0]} ${a.cote === "G" ? "gauche" : "droite"} enregistré : ${formatSerie(a.exo, serie)}`
-    + (suite != null ? ` → ${Store.getExo(live.exos[suite].exo_id).nom}` : ""));
+    + (suite != null ? ` → ${nomExo(Store.getExo(live.exos[suite].exo_id))}` : ""));
   save();
   vibrer(30);
   if (suite != null) allerPage(suite);
@@ -1085,6 +1175,208 @@ function toggleEffort(x, i, exo, d) {
   renderSeance();
 }
 
+/* ---------- Corde : effort et repos enchaînés tout seuls (08/11/2026, demande d'Alix) ----------
+   Un seul appui : 5 s pour se mettre en place (bleu), puis effort (vert) et repos (orange) s'enchaînent
+   jusqu'à la dernière série, avec un décompte géant et des bips (3-2-1, puis départ / arrêt).
+   Chaque série est notée à sa durée cible quand son décompte arrive à zéro.
+   Comme pour le repos, on ne compte pas les secondes une à une : on note l'heure de départ de la phase et
+   on calcule l'écart. Si le téléphone a décroché (onglet rechargé, écran éteint), le retard est rattrapé.
+   live.circuit : { idx, phase: "prep" | "effort" | "repos", start_ts, pause_ts } */
+
+const CIRCUIT_PREPA_SEC = 5;
+
+function dureePhase(c, exo) {
+  if (c.phase === "prep") return CIRCUIT_PREPA_SEC;
+  return c.phase === "effort" ? range(exo.cible_temps_sec)[0] : range(exo.repos_sec)[0];
+}
+
+/* Où en est la corde : phase, secondes restantes, numéro de la série en cours (ou à venir), total prévu. */
+function etatCircuit() {
+  const c = live && live.circuit;
+  if (!c) return null;
+  const x = live.exos[c.idx];
+  if (!x) return null;
+  const exo = Store.getExo(x.exo_id, live.modele);
+  const ecoule = ((c.pause_ts || Date.now()) - c.start_ts) / 1000;
+  return {
+    c, x, exo, phase: c.phase, pause: !!c.pause_ts,
+    restant: Math.max(0, dureePhase(c, exo) - ecoule),
+    n: seriesTravail(x.series).length + 1,
+    total: range(exo.cible_series)[1],
+  };
+}
+
+/* Décompte affiché : « 38 », puis « 1:58 » au-delà d'une minute. */
+function texteDecompte(sec) {
+  const t = Math.ceil(sec);
+  return t >= 60 ? `${Math.floor(t / 60)}:${String(t % 60).padStart(2, "0")}` : String(t);
+}
+
+/* Bips de la corde, différents à l'oreille : 3-2-1 courts, départ (montant), arrêt (descendant), fin (triple). */
+const SONS = {
+  tic: { notes: [[1320, 0, 0.12]], vib: 60 },
+  go: { notes: [[1760, 0, 0.22], [2349, 0.26, 0.45]], vib: [300, 80, 300] },
+  stop: { notes: [[1568, 0, 0.22], [988, 0.26, 0.5]], vib: 600 },
+  fin: { notes: [[1760, 0, 0.2], [1760, 0.28, 0.2], [2349, 0.56, 0.5]], vib: [500, 150, 500, 150, 500] },
+};
+function son(type) {
+  const p = SONS[type];
+  vibrer(p.vib);
+  if (!audioCtx) return;
+  try {
+    for (const [freq, debut, duree] of p.notes) {
+      const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+      const t = audioCtx.currentTime + debut;
+      o.type = "square";
+      o.frequency.value = freq;
+      o.connect(g);
+      g.connect(audioCtx.destination);
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(1, t + 0.01);
+      g.gain.setValueAtTime(1, t + duree - 0.05);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + duree);
+      o.start(t);
+      o.stop(t + duree + 0.02);
+    }
+  } catch (err) { /* pas de son, la vibration suffit */ }
+}
+
+function lancerCircuit(i) {
+  debloquerSon();
+  Store.recalerDebutSiAncien(live);
+  Repos.arreter(live);
+  live.effort = null;
+  live.circuit = { idx: i, phase: "prep", start_ts: Date.now(), pause_ts: null };
+  f(i).erreur = null;
+  save();
+  vibrer(30);
+  renderSeance();
+}
+
+function pauseCircuit() {
+  const c = live.circuit;
+  if (!c) return;
+  debloquerSon();
+  if (c.pause_ts) { c.start_ts += Date.now() - c.pause_ts; c.pause_ts = null; }
+  else c.pause_ts = Date.now();
+  save();
+  renderSeance();
+}
+
+/* Repos (ou mise en place) écourté : l'effort part tout de suite. */
+function passerCircuit() {
+  const c = live.circuit;
+  if (!c || c.phase === "effort") return;
+  debloquerSon();
+  Object.assign(c, { phase: "effort", start_ts: Date.now(), pause_ts: null });
+  son("go");
+  save();
+  renderSeance();
+}
+
+/* Arrêt avant la fin : une série en cours d'au moins 5 s est notée à sa durée réelle. */
+function arreterCircuit() {
+  const st = etatCircuit();
+  if (!st) { live.circuit = null; save(); renderSeance(); return; }
+  const { c, x } = st;
+  if (c.phase === "effort") {
+    const sec = Math.round(((c.pause_ts || Date.now()) - c.start_ts) / 1000);
+    if (sec >= 5) x.series.push({ duree_sec: sec, ts: Date.now() });
+  }
+  live.circuit = null;
+  save();
+  vibrer(30);
+  if (exoTermine(c.idx)) finirCircuit(c.idx);
+  else renderSeance();
+}
+
+/* Appelé 4 fois par seconde : à zéro, passe à la phase suivante et note la série à la fin de chaque effort ;
+   bipe aux 3 dernières secondes. Un changement rattrapé en retard (téléphone en veille) ne bipe pas. */
+function avancerCircuit() {
+  const st = etatCircuit();
+  if (!st) { if (live && live.circuit) { live.circuit = null; save(); } return; }
+  const { c, x, exo } = st;
+  if (c.pause_ts) return;
+  const now = Date.now();
+  let change = false, fini = false;
+  for (let garde = 0; garde < 100; garde++) {
+    const fin = c.start_ts + dureePhase(c, exo) * 1000;
+    if (now < fin) break;
+    const aLHeure = now - fin < 2500;
+    change = true;
+    if (c.phase === "effort") {
+      x.series.push({ duree_sec: range(exo.cible_temps_sec)[0], ts: fin });
+      if (x.statut === "saute") x.statut = "a_faire";
+      if (seriesTravail(x.series).length >= range(exo.cible_series)[1]) { fini = true; if (aLHeure) son("fin"); break; }
+      Object.assign(c, { phase: "repos", start_ts: fin });
+      if (aLHeure) son("stop");
+    } else {
+      Object.assign(c, { phase: "effort", start_ts: fin });
+      if (aLHeure) son("go");
+    }
+  }
+  if (fini) {
+    live.circuit = null;
+    save();
+    finirCircuit(c.idx);
+    return;
+  }
+  if (change) {
+    save();
+    if (vue === "seance" && !saisieEnCours()) renderSeance();
+    return;
+  }
+  const reste = Math.ceil(dureePhase(c, exo) - (now - c.start_ts) / 1000);
+  const cle = `${c.start_ts}-${reste}`;
+  if (reste >= 1 && reste <= 3 && dernierTic !== cle) { dernierTic = cle; son("tic"); }
+}
+
+/* Corde finie : repos normal lancé, puis page suivante (comme après la dernière série d'un exercice). */
+function finirCircuit(i) {
+  const x = live.exos[i];
+  const exo = Store.getExo(x.exo_id, live.modele);
+  Repos.onValidation(live, cibleRepos(exo, x.series));
+  const suite = exoSuivantSiTermine(i);
+  toast(`✓ ${nomExo(exo)} : ${formatSeries(exo, x.series)}` + (suite != null ? ` → ${nomExo(Store.getExo(live.exos[suite].exo_id))}` : ""));
+  save();
+  if (vue !== "seance" || saisieEnCours()) return;
+  if (suite != null && ouvert === i) allerPage(suite);
+  else renderSeance();
+}
+
+/* Le panneau de la corde : avant le départ, un gros bouton ; pendant, le décompte géant en couleur
+   (bleu = mise en place, vert = on saute, orange = repos) et ce qu'on fait à cette série. */
+function renderCircuit(x, i, exo) {
+  const N = range(exo.cible_series)[1], T = range(exo.cible_temps_sec)[0], R = range(exo.repos_sec)[0];
+  const st = live.circuit && live.circuit.idx === i ? etatCircuit() : null;
+  if (!st) {
+    const faites = seriesTravail(x.series).length;
+    const fini = faites >= N;
+    const prochaine = faites + 1;
+    const det = fini ? null : detailSerieN(exo, prochaine);
+    const panneau = h("div", { class: "circuit attente" },
+      h("p", { class: "circuit-label" }, fini ? "✓ Corde faite" : `${N} × ${formatDuree(T)} · repos ${formatDuree(R)}`),
+      !fini && faites ? h("p", { class: "circuit-sous" }, `On reprend à la série ${prochaine} / ${N}`) : null,
+      det ? h("p", { class: "circuit-detail" }, `Série ${prochaine} : ${det}`) : null,
+      h("button", { class: "circuit-go", onclick: () => lancerCircuit(i) }, fini ? "▶ Une série de plus" : faites ? "▶ Reprendre" : "▶ Lancer"),
+      !fini ? h("p", { class: "muted small" }, `${CIRCUIT_PREPA_SEC} s pour se mettre en place, puis effort et repos s'enchaînent tout seuls.`) : null);
+    if (!faites) panneau.append(h("button", { class: "btn-ghost pas-fait", onclick: () => ouvrirFeuille("saut", i) }, "Pas fait"));
+    return panneau;
+  }
+  const titre = st.pause ? "En pause" : { prep: "Prêt ?", effort: "Saute !", repos: "Repos" }[st.phase];
+  const sous = st.phase === "effort" ? `Série ${st.n} / ${N}` : `Ensuite : série ${st.n} / ${N}`;
+  const det = detailSerieN(exo, st.n);
+  return h("div", { class: `circuit ${st.phase}${st.pause ? " pause" : ""}` },
+    h("p", { class: "circuit-label" }, titre),
+    h("p", { id: "circuit-temps", class: "circuit-temps" }, texteDecompte(st.restant)),
+    h("p", { class: "circuit-sous" }, sous),
+    det ? h("p", { class: "circuit-detail" }, det) : null,
+    h("div", { class: "circuit-actions" },
+      h("button", { onclick: pauseCircuit }, st.pause ? "▶ Reprendre" : "⏸ Pause"),
+      st.phase !== "effort" ? h("button", { onclick: passerCircuit }, "⏭ Go") : null,
+      h("button", { onclick: arreterCircuit }, "■ Arrêter")));
+}
+
 /* ---------- Barre de repos (toujours en haut pendant la séance) ---------- */
 
 /* Repos (simplifié le 11/10, Alix : trop de rigueur pour des chiffres imprécis) : rien n'est enregistré.
@@ -1103,8 +1395,19 @@ function renderReposBar() {
   document.body.classList.toggle("has-bar", !!actif);
   bar.style.display = actif ? "" : "none";
   if (!actif) return;
-  const st = Repos.etat(live);
   const temps = $("repos-temps"), sub = $("repos-sub"), btn = $("repos-btn");
+  /* Corde en cours : la barre suit le décompte, même depuis une autre page. */
+  const ci = etatCircuit();
+  if (ci) {
+    bar.className = `repos-bar circuit-${ci.phase}${ci.pause ? " pause" : ""}`;
+    btn.style.display = "none";
+    temps.textContent = texteDecompte(ci.restant);
+    sub.textContent = ci.pause ? "corde en pause"
+      : ci.phase === "effort" ? `corde · série ${ci.n}/${ci.total}`
+      : ci.phase === "repos" ? `repos · ensuite série ${ci.n}/${ci.total}` : "corde : en place !";
+    return;
+  }
+  const st = Repos.etat(live);
   bar.className = "repos-bar " + (st ? st.phase : "idle");
   btn.style.display = live.effort ? "none" : "";
   if (!st) {
@@ -1141,7 +1444,12 @@ function onReposBtn() {
 
 function tick() {
   if (vue !== "seance" || !live) return;
+  avancerCircuit();
+  if (vue !== "seance" || !live) return;
   renderReposBar();
+  const ci = etatCircuit();
+  const el = ci && $("circuit-temps");
+  if (el) el.textContent = texteDecompte(ci.restant);
   if (live.effort) {
     const ecoule = Math.floor((Date.now() - live.effort.start_ts) / 1000);
     const el = $(`effort-${live.effort.idx}`);
@@ -1174,7 +1482,7 @@ function renderFin() {
       nonFaits.map(({ x }) => {
         const exo = Store.getExo(x.exo_id);
         const actuelle = x.raison || "Pas le temps";
-        return h("div", { class: "nonfait" }, h("p", null, exo.nom),
+        return h("div", { class: "nonfait" }, h("p", null, nomExo(exo)),
           h("div", { class: "chips" }, RAISONS_SAUT.map((r) => h("button", {
             class: "chip" + (r.label === actuelle ? " selected" : ""),
             onclick: () => { x.raison = r.label; save(); renderFin(); },
@@ -1207,6 +1515,7 @@ async function validerEtArchiver(btn) {
   });
   Repos.arreter(live);
   live.effort = null;
+  live.circuit = null;
   const archive = Store.finaliserSeance(live);
   live = null;
   Ecran.relacher();

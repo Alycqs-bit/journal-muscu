@@ -125,27 +125,27 @@ button:active { transform: scale(0.97); }
 .chip { font-size: 0.85rem; padding: 0.4rem 0.75rem; border-radius: 999px; background: var(--card-2); border: 1px solid var(--line); }
 .chip.selected { background: var(--accent-soft); border-color: var(--accent); color: white; }
 
-/* ---------- Séries ---------- */
+/* ---------- Séries du jour : cases compactes (08/11) ---------- */
 
-.series { display: flex; flex-direction: column; gap: 0.3rem; }
-.serie-row {
-  display: grid;
-  grid-template-columns: 2.2rem 1fr auto;
-  align-items: center;
-  gap: 0.4rem;
-  text-align: left;
-  background: var(--bg);
-  border: 1px solid transparent;
-  padding: 0.5rem 0.6rem;
-  font-size: 0.92rem;
+.series { flex: 0 1 auto; min-height: 2.2rem; overflow-y: auto; display: flex; flex-direction: column; gap: 0.25rem; }
+.serie-cells { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem; }
+.serie-cells > .label { margin-right: 0.15rem; }
+.serie-cell {
+  display: inline-flex; align-items: baseline; gap: 0.35rem; flex-wrap: wrap;
+  text-align: left; background: var(--bg); border: 1px solid transparent;
+  padding: 0.22rem 0.45rem; border-radius: 8px; font-size: 0.85rem; font-variant-numeric: tabular-nums;
 }
-.serie-row .num { color: var(--muted); font-size: 0.8rem; }
-.serie-row .main { font-weight: 600; }
-.serie-row .tags { font-size: 0.8rem; color: var(--muted); white-space: nowrap; }
-.serie-row .serie-note { grid-column: 2 / -1; font-size: 0.82rem; color: #c9d4e6; font-style: italic; }
-.serie-row.ech { opacity: 0.6; }
-.serie-row.ech .main { font-weight: 400; }
-.serie-row.editing { border-color: var(--warn); }
+.serie-cell .num { color: var(--muted); font-size: 0.75rem; }
+.serie-cell .main { font-weight: 700; }
+.serie-cell .tags { font-size: 0.78rem; color: var(--muted); white-space: nowrap; }
+.serie-cell.ech { opacity: 0.6; }
+.serie-cell.ech .main { font-weight: 400; }
+.serie-cell.editing { border-color: var(--warn); }
+.grille-jour { display: grid; grid-template-columns: 1.1rem 1fr 1fr; gap: 0.2rem 0.3rem; align-items: center; }
+.grille-jour .serie-cell { justify-content: center; }
+.grille-th { font-size: 0.72rem; color: var(--muted); text-align: center; }
+.grille-num { font-size: 0.75rem; color: var(--muted); text-align: center; }
+.grille-vide { text-align: center; color: var(--line); }
 
 /* ---------- Saisie ---------- */
 
@@ -254,14 +254,15 @@ details summary { color: var(--muted); cursor: pointer; }
 .btn-chrono-grand { display: flex; flex-direction: column; align-items: center; gap: 0.2rem; width: 100%; padding: 0.9rem; background: var(--accent); color: white; font-weight: 700; }
 .btn-chrono-grand.running { background: var(--warn); color: #1a1205; }
 .effort-temps { font-size: 2rem; font-weight: 800; font-variant-numeric: tabular-nums; }
-.toast { position: fixed; left: 50%; bottom: 1.2rem; transform: translateX(-50%) translateY(150%); background: #166534; color: white; padding: 0.7rem 1rem; border-radius: 12px; font-weight: 600; z-index: 60; transition: transform 0.25s; max-width: 92vw; text-align: center; }
+.toast { pointer-events: none; position: fixed; left: 50%; bottom: 1.2rem; transform: translateX(-50%) translateY(150%); background: #166534; color: white; padding: 0.7rem 1rem; border-radius: 12px; font-weight: 600; z-index: 60; transition: transform 0.25s; max-width: 92vw; text-align: center; }
 .toast.show { transform: translateX(-50%) translateY(0); }
-.suiveur { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; flex-wrap: wrap; background: #13264a; border: 1px solid var(--accent); border-radius: 12px; padding: 0.6rem 0.75rem; font-size: 0.92rem; }
+.suiveur { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; flex-wrap: wrap; background: #13264a; border: 1px solid var(--accent); border-radius: 12px; padding: 0.4rem 0.6rem; font-size: 0.92rem; }
+.suiveur button { padding: 0.45rem 0.8rem; }
 
 
 /* Série de travail où il manque le RIR ou la technique : rouge, un appui sur la ligne pour compléter. */
-.serie-row .manque { color: #fff; background: var(--bad); font-weight: 700; border-radius: 6px; padding: 0 0.3rem; font-size: 0.75rem; }
-.serie-row .manque.rond { display: inline-flex; align-items: center; justify-content: center; width: 1.2rem; height: 1.2rem; padding: 0; border-radius: 50%; }
+.serie-cell .manque { color: #fff; background: var(--bad); font-weight: 700; border-radius: 6px; padding: 0 0.3rem; font-size: 0.75rem; }
+.serie-cell .manque.rond { display: inline-flex; align-items: center; justify-content: center; width: 1.2rem; height: 1.2rem; padding: 0; border-radius: 50%; }
 .saisie-titre.ech { color: #fcd34d; }
 
 /* Consignes du coach (compétence coach-muscu-alix), lues dans la dernière analyse de force (08/10). */
@@ -298,3 +299,88 @@ details summary { color: var(--muted); cursor: pointer; }
 .deroule { font-size: 0.95rem; font-weight: 600; color: var(--text); }
 .infos { display: flex; flex-direction: column; gap: 0.35rem; font-size: 0.85rem; color: #c9d4e6; background: var(--bg); border-radius: 10px; padding: 0.6rem 0.75rem; }
 .infos strong { color: var(--muted); font-weight: 600; }
+
+/* ---------- Séance sans défilement (08/11/2026, Alix : « jamais besoin de scroller ») ----------
+   L'écran de séance fait exactement la hauteur visible (100dvh = hauteur réelle, barre du navigateur comprise),
+   la saisie est calée en bas. Si un jour ça ne tient pas, seule la liste des séries du jour défile. */
+#app.vue-seance { height: calc(100vh - 56px); height: calc(100dvh - 56px); padding: 0.5rem 0.75rem; gap: 0.45rem; overflow-x: clip; }
+#app.vue-seance .page { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+#app.vue-seance .exo-card { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: visible; }
+#app.vue-seance .exo-header { padding: 0.5rem 0.75rem 0.4rem; }
+#app.vue-seance .exo-body { flex: 1; min-height: 0; padding: 0 0.75rem 0.75rem; gap: 0.45rem; }
+.exo-bas { margin-top: auto; display: flex; flex-direction: column; gap: 0.45rem; }
+.exo-bas.plein { flex: 1; }
+.exo-titre .exo-nom { flex: 1; min-width: 0; }
+.icon-act { flex: none; padding: 0.3rem 0.5rem; font-size: 0.95rem; background: transparent; border: 1px solid var(--line); border-radius: 8px; }
+.icon-act.has { border-color: var(--accent); }
+.icon-act.coach-dot { border-color: #7c3aed; box-shadow: inset 0 0 0 1px #7c3aed; }
+.saute-box { display: flex; flex-direction: column; gap: 0.5rem; }
+.comment-box.seance { flex: 1; min-height: 5rem; max-height: 14rem; }
+
+/* « Dernière fois » : ligne repliée, bulle par-dessus la page quand on l'ouvre. */
+.derniere { position: relative; }
+.derniere-btn { background: var(--bg); padding: 0.38rem 0.65rem; border-radius: 10px; }
+.derniere-btn.open { border-color: var(--accent); }
+.derniere-pop {
+  position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 30;
+  display: flex; flex-direction: column; gap: 0.35rem;
+  background: var(--card-2); border: 1px solid var(--accent); border-radius: 10px; padding: 0.6rem 0.75rem;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.55);
+}
+
+/* Saisie compacte : une ligne par champ, étiquette à gauche. */
+#app.vue-seance .saisie { gap: 0.45rem; padding: 0.6rem; }
+.saisie-tete { display: flex; justify-content: space-between; align-items: center; gap: 0.4rem; flex-wrap: wrap; min-height: 2rem; }
+.ligne { display: flex; align-items: center; gap: 0.4rem; }
+.ligne-label { flex: 0 0 3.3rem; font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; line-height: 1.15; }
+.ligne-label small { text-transform: none; letter-spacing: 0; font-size: 0.68rem; }
+.ligne > .stepper, .ligne > .num-input, .ligne > .duo { flex: 1; min-width: 0; }
+#app.vue-seance .stepper button { height: 2.6rem; min-width: 2.7rem; }
+#app.vue-seance .stepper button.small { min-width: 2.35rem; font-size: 0.85rem; }
+#app.vue-seance .num-input { padding: 0.4rem 0.3rem; }
+.duo { display: flex; gap: 0.5rem; }
+.duo .seg { flex: 3; }
+.duo .seg.tech { flex: 2; }
+.duo .seg button { height: 2.4rem; }
+.seg.mini button { padding: 0.32rem 0.6rem; font-size: 0.85rem; flex: none; }
+.toggle.mini { padding: 0.32rem 0.55rem; font-size: 0.85rem; }
+.row.nowrap { flex-wrap: nowrap; }
+.row > .pas-fait { flex: 0 0 auto; }
+.enregistrer { padding: 0.75rem 0.5rem; }
+
+/* Panneaux par-dessus la page : Infos, commentaire, « pas fait ». */
+.feuille-fond { position: fixed; inset: 0; z-index: 70; background: rgba(0, 0, 0, 0.55); display: flex; align-items: flex-end; justify-content: center; }
+.feuille {
+  width: 100%; max-width: 520px; max-height: 78vh; max-height: 78dvh; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 0.6rem;
+  background: var(--card); border: 1px solid var(--line); border-bottom: none;
+  border-radius: 16px 16px 0 0; padding: 0.8rem 0.9rem calc(1rem + env(safe-area-inset-bottom));
+  animation: feuille-monte 0.18s ease-out;
+}
+@keyframes feuille-monte { from { transform: translateY(30px); opacity: 0.4; } to { transform: none; opacity: 1; } }
+.feuille-tete { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; }
+.feuille-tete button { padding: 0.35rem 0.7rem; }
+.feuille .comment-box { min-height: 6rem; }
+
+/* Corde enchaînée : décompte géant, une couleur par phase (bleu = en place, vert = on saute, orange = repos). */
+.circuit {
+  flex: 1; min-height: 15rem; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 0.35rem; text-align: center; border-radius: 16px; padding: 0.8rem; background: var(--card-2);
+  transition: background 0.25s;
+}
+.circuit.prep { background: #1d4ed8; color: #fff; }
+.circuit.effort { background: #15803d; color: #fff; }
+.circuit.repos { background: #c2410c; color: #fff; }
+.circuit.pause { filter: saturate(0.35) brightness(0.8); }
+.circuit-label { font-size: 1.5rem; font-weight: 900; text-transform: uppercase; letter-spacing: 0.08em; }
+.circuit.attente .circuit-label { font-size: 1.15rem; letter-spacing: 0.02em; text-transform: none; }
+.circuit-temps { font-size: clamp(5.5rem, 34vw, 10rem); font-weight: 900; line-height: 0.95; font-variant-numeric: tabular-nums; }
+.circuit-sous { font-size: 1.1rem; font-weight: 700; }
+.circuit-detail { font-size: 1.05rem; opacity: 0.95; }
+.circuit-go { font-size: 1.5rem; font-weight: 800; padding: 1rem 2.4rem; border-radius: 14px; background: var(--ok); color: #05210f; margin: 0.4rem 0; }
+.circuit-actions { display: flex; gap: 0.5rem; margin-top: 0.4rem; }
+.circuit-actions button { background: rgba(255, 255, 255, 0.16); border-color: rgba(255, 255, 255, 0.35); color: #fff; font-weight: 700; padding: 0.6rem 0.9rem; }
+.repos-bar.circuit-prep { background: #1d4ed8; }
+.repos-bar.circuit-effort { background: #15803d; }
+.repos-bar.circuit-repos { background: #c2410c; }
+.repos-bar[class*="circuit-"] #repos-sub { color: #fff; }
