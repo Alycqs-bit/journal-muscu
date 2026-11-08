@@ -153,6 +153,20 @@ async function retirerDeDrive(onProgress) {
   const aRetirer = lsGet("muscu:a_retirer", []);
   if (!aRetirer.length) return 0;
   await synchroniserDepuisDrive(onProgress);
+  /* Avec le relais, tout part en un seul envoi (voir DriveAuth.ouvrirLot). */
+  DriveAuth.ouvrirLot();
+  try {
+    await ecrireRetraits(aRetirer, onProgress);
+    if (onProgress && DriveAuth.aRelais()) onProgress("Envoi groupé au relais Drive… (dans 2-3 s, tu peux changer d'app)");
+    await DriveAuth.envoyerLot();
+  } finally {
+    DriveAuth.annulerLot();
+  }
+  lsSet("muscu:a_retirer", []);
+  return aRetirer.length;
+}
+
+async function ecrireRetraits(aRetirer, onProgress) {
   const exos = new Set();
   for (const r of aRetirer) {
     if (onProgress) onProgress("Suppression du fichier de séance…");
@@ -167,8 +181,6 @@ async function retirerDeDrive(onProgress) {
   const derniere = Store.getDerniereArchive();
   if (derniere) await DriveAuth.writeFile("journal-muscu-derniere-seance.md", buildResumeMarkdown(derniere));
   await DriveAuth.writeFile("journal-muscu-archives.json", sauvegardeComplete(), "application/json");
-  lsSet("muscu:a_retirer", []);
-  return aRetirer.length;
 }
 
 /* Envoie toutes les séances en attente. En cas d'échec, la file reste intacte : un nouvel essai
@@ -184,6 +196,24 @@ async function envoyerOutbox(onProgress) {
     ? [...new Set([...Store.getArchives().map((a) => a.id), ...Store.getOutbox()])]
     : Store.getOutbox();
   if (!ids.length && !premierEnvoi && !recuperees.length) return 0;
+  /* Avec le relais, toutes les écritures partent en un seul envoi : une fois reçu, le relais les finit
+     même si le téléphone passe à une autre app (08/11/2026). */
+  DriveAuth.ouvrirLot();
+  let envoyes;
+  try {
+    envoyes = await ecrireOutbox(ids, premierEnvoi, recuperees, onProgress);
+    if (onProgress && DriveAuth.aRelais()) onProgress("Envoi groupé au relais Drive… (dans 2-3 s, tu peux changer d'app)");
+    await DriveAuth.envoyerLot();
+  } finally {
+    DriveAuth.annulerLot();
+  }
+  envoyes.forEach((id) => Store.retirerOutbox(id));
+  lsSet("muscu:drive_init", true);
+  lsSet("muscu:drive_seances_init_v2", true);
+  return envoyes.length;
+}
+
+async function ecrireOutbox(ids, premierEnvoi, recuperees, onProgress) {
   const derniere = Store.getDerniereArchive();
   const exosTouches = new Set(premierEnvoi ? Store.getExosAvecHistorique() : []);
   recuperees.forEach((a) => a.exos.forEach((x) => exosTouches.add(x.exo_id)));
@@ -208,10 +238,7 @@ async function envoyerOutbox(onProgress) {
     if (onProgress) onProgress(`Fichiers par exercice… ${++i}/${exosTouches.size}`);
     await DriveAuth.writeFile(`exo-${exoId}.md`, buildExoMarkdown(exoId));
   }
-  envoyes.forEach((id) => Store.retirerOutbox(id));
-  lsSet("muscu:drive_init", true);
-  lsSet("muscu:drive_seances_init_v2", true);
-  return envoyes.length;
+  return envoyes;
 }
 
 /* ---------- Consignes du coach (compétence coach-muscu-alix, 08/10/2026) ----------

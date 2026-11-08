@@ -89,6 +89,30 @@ const DriveAuth = (() => {
   }
   function retirerRelais() { localStorage.removeItem(RELAIS_KEY); }
 
+  /* Envoi groupé (08/11/2026) : entre ouvrirLot() et envoyerLot(), les écritures et mises à la corbeille
+     sont mises de côté puis partent en UNE seule requête. Une fois reçue, le relais finit le travail chez
+     Google : on peut changer d'app sans couper l'envoi. Sans relais, ouvrirLot() ne fait rien. */
+  let lot = null;
+  function ouvrirLot() { lot = aRelais() ? [] : null; }
+  function annulerLot() { lot = null; }
+  function dansLot(op) {
+    if (op.op === "ecrire") lot = lot.filter((o) => !(o.op === "ecrire" && o.nom === op.nom)); // seule la dernière version compte
+    lot.push(op);
+  }
+  async function envoyerLot() {
+    const ops = lot;
+    lot = null;
+    if (!ops || !ops.length) return null;
+    try {
+      return await relais("lot", { operations: ops });
+    } catch (err) {
+      if (/injoignable/.test(err.message)) {
+        throw new Error("pas de réponse du relais (app passée en arrière-plan ou réseau coupé). Si l'envoi était parti, le relais l'a fini ; sinon il repartira tout seul, sans doublon");
+      }
+      throw err;
+    }
+  }
+
   function isReady() { return aRelais() || !!tokenClient; }
   function isConnected() { return aRelais() || !!token(); }
 
@@ -136,6 +160,7 @@ const DriveAuth = (() => {
   }
 
   async function writeFile(name, content, mimeType = "text/markdown") {
+    if (lot) return dansLot({ op: "ecrire", nom: name, contenu: content, mime: mimeType });
     if (aRelais()) return relais("ecrire", { nom: name, contenu: content, mime: mimeType });
     const parent = await getDossier();
     const query = encodeURIComponent(`name = '${q(name)}' and '${parent}' in parents and trashed = false`);
@@ -194,6 +219,7 @@ const DriveAuth = (() => {
 
   /* Met à la corbeille Drive (récupérable 30 jours) un fichier du dossier de l'app. */
   async function trashFile(name) {
+    if (lot) return dansLot({ op: "corbeille", nom: name });
     if (aRelais()) return relais("corbeille", { nom: name });
     const parent = await getDossier();
     const query = encodeURIComponent(`name = '${q(name)}' and '${parent}' in parents and trashed = false`);
@@ -208,5 +234,5 @@ const DriveAuth = (() => {
   }
 
   return { init, isReady, isConnected, ensureToken, deconnecter, writeFile, readFile, trashFile, listerDossier, lireParId,
-    aRelais, configurerRelais, retirerRelais };
+    aRelais, configurerRelais, retirerRelais, ouvrirLot, envoyerLot, annulerLot };
 })();
