@@ -88,6 +88,7 @@ button:active { transform: scale(0.97); }
 
 .pill { font-size: 0.8rem; padding: 0.3rem 0.7rem; border-radius: 999px; border: 1px solid var(--line); background: transparent; color: var(--muted); }
 .pill.ok { color: var(--ok); border-color: #1f5135; }
+.row-pills { display: flex; gap: 0.4rem; flex-wrap: wrap; justify-content: flex-end; }
 
 .icon-btn { padding: 0.45rem 0.6rem; background: transparent; border-color: var(--line); opacity: 0.55; }
 .icon-btn.on { opacity: 1; border-color: var(--warn); }

@@ -5,12 +5,18 @@
    - Autorisation « drive.file » : l'app n'écrit QUE dans les fichiers qu'elle a créés. Elle range tout dans
      son propre dossier « Journal Muscu (app) », qu'on peut déplacer où on veut dans Drive (C8).
    - Autorisation « drive.readonly » (ajoutée le 08/10/2026, choix d'Alix) : lecture seule du reste du Drive,
-     pour lire les consignes du coach dans les analyses de force (dossier Analyses > Daily du projet Trail). */
+     pour lire les consignes du coach dans les analyses de force (dossier Analyses > Daily du projet Trail).
+   - Relais Drive (08/11/2026, demande d'Alix) : un petit programme Apps Script dans le compte Google d'Alix
+     (« Relais Drive (Apps Script)/Code.gs », hors du dépôt) range les fichiers EN SON NOM, sans jeton d'1 h.
+     Son adresse est collée une fois par appareil et gardée dans le navigateur (jamais sur GitHub : elle sert
+     de mot de passe). Tant qu'il n'est pas réglé, l'app garde l'ancienne connexion Google ci-dessous. */
 
 const CLIENT_ID = "68380651068-8sng7sm5q520vk581gvoeeve0m9hpmj3.apps.googleusercontent.com";
 const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.readonly";
 const DOSSIER_APP = "Journal Muscu (app)";
 const TOKEN_KEY = "muscu:google_token";
+const RELAIS_KEY = "muscu:relais_drive";
+const RELAIS_FORMAT = /^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/;
 
 const DriveAuth = (() => {
   let tokenClient = null;
@@ -51,13 +57,45 @@ const DriveAuth = (() => {
     return t && t.exp > Date.now() + 60000 && (t.scope || "").includes("drive.readonly") ? t.access_token : null;
   }
 
-  function isReady() { return !!tokenClient; }
-  function isConnected() { return !!token(); }
+  /* ---------- Relais ---------- */
+
+  function relaisUrl() {
+    const u = lsGet(RELAIS_KEY, null);
+    return typeof u === "string" && RELAIS_FORMAT.test(u) ? u : null;
+  }
+  function aRelais() { return !!relaisUrl(); }
+
+  /* Le corps est du texte JSON sans en-tête particulier : le navigateur l'envoie tel quel, sans
+     demande d'autorisation préalable, et suit la redirection de Google vers la réponse. */
+  async function relais(action, params, url = relaisUrl()) {
+    let res;
+    try {
+      res = await fetch(url, { method: "POST", body: JSON.stringify(Object.assign({ action }, params || {})) });
+    } catch (err) {
+      throw new Error("relais Drive injoignable (connexion internet ?)");
+    }
+    let r;
+    try { r = await res.json(); } catch (err) { throw new Error(`relais Drive : réponse illisible (${res.status}), déploiement à vérifier`); }
+    if (!r || !r.ok) throw new Error("relais Drive : " + ((r && r.erreur) || "erreur inconnue"));
+    return r.resultat;
+  }
+
+  /* Vérifie l'adresse (un aller-retour avec le relais) avant de la garder. */
+  async function configurerRelais(saisie) {
+    const url = String(saisie || "").trim();
+    if (!RELAIS_FORMAT.test(url)) throw new Error("adresse attendue : https://script.google.com/macros/s/…/exec");
+    await relais("ping", {}, url);
+    lsSet(RELAIS_KEY, url);
+  }
+  function retirerRelais() { localStorage.removeItem(RELAIS_KEY); }
+
+  function isReady() { return aRelais() || !!tokenClient; }
+  function isConnected() { return aRelais() || !!token(); }
 
   /* À appeler en tout premier dans un clic : le navigateur n'autorise la fenêtre Google
      que juste après un geste de l'utilisateur. */
   function ensureToken() {
-    if (token()) return Promise.resolve();
+    if (aRelais() || token()) return Promise.resolve();
     return new Promise((resolve, reject) => {
       if (!tokenClient) return reject(new Error("Google pas encore chargé (connexion internet ?)"));
       pending = { resolve, reject };
@@ -98,6 +136,7 @@ const DriveAuth = (() => {
   }
 
   async function writeFile(name, content, mimeType = "text/markdown") {
+    if (aRelais()) return relais("ecrire", { nom: name, contenu: content, mime: mimeType });
     const parent = await getDossier();
     const query = encodeURIComponent(`name = '${q(name)}' and '${parent}' in parents and trashed = false`);
     const found = await api(`https://www.googleapis.com/drive/v3/files?q=${query}&fields=files(id)`);
@@ -122,6 +161,7 @@ const DriveAuth = (() => {
 
   /* Contenu texte d'un fichier du dossier de l'app, ou null s'il n'existe pas. */
   async function readFile(name) {
+    if (aRelais()) return relais("lire", { nom: name });
     const parent = await getDossier();
     const query = encodeURIComponent(`name = '${q(name)}' and '${parent}' in parents and trashed = false`);
     const found = await api(`https://www.googleapis.com/drive/v3/files?q=${query}&fields=files(id)`);
@@ -135,6 +175,7 @@ const DriveAuth = (() => {
 
   /* Fichiers (ou dossiers) d'un dossier quelconque du Drive, lecture seule. */
   async function listerDossier(parentId, filtre = "") {
+    if (aRelais()) return relais("lister", { parentId, filtre });
     const query = encodeURIComponent(`'${parentId}' in parents and trashed = false${filtre ? " and " + filtre : ""}`);
     const res = await api(`https://www.googleapis.com/drive/v3/files?q=${query}&fields=files(id,name,mimeType)&pageSize=200`);
     return res.files || [];
@@ -142,6 +183,7 @@ const DriveAuth = (() => {
 
   /* Contenu texte d'un fichier par son identifiant (un Google Doc est exporté en texte). */
   async function lireParId(id, mimeType) {
+    if (aRelais()) return relais("lireParId", { id, mimeType });
     const url = mimeType === "application/vnd.google-apps.document"
       ? `https://www.googleapis.com/drive/v3/files/${id}/export?mimeType=text/plain`
       : `https://www.googleapis.com/drive/v3/files/${id}?alt=media`;
@@ -152,6 +194,7 @@ const DriveAuth = (() => {
 
   /* Met à la corbeille Drive (récupérable 30 jours) un fichier du dossier de l'app. */
   async function trashFile(name) {
+    if (aRelais()) return relais("corbeille", { nom: name });
     const parent = await getDossier();
     const query = encodeURIComponent(`name = '${q(name)}' and '${parent}' in parents and trashed = false`);
     const found = await api(`https://www.googleapis.com/drive/v3/files?q=${query}&fields=files(id)`);
@@ -164,5 +207,6 @@ const DriveAuth = (() => {
     }
   }
 
-  return { init, isReady, isConnected, ensureToken, deconnecter, writeFile, readFile, trashFile, listerDossier, lireParId };
+  return { init, isReady, isConnected, ensureToken, deconnecter, writeFile, readFile, trashFile, listerDossier, lireParId,
+    aRelais, configurerRelais, retirerRelais };
 })();

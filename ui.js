@@ -150,15 +150,42 @@ function monter(...els) {
 
 /* ---------- Accueil ---------- */
 
+/* Relais Drive (08/11/2026) : une fois son adresse collée, Drive est toujours joignable, sans reconnexion. */
 function renderGoogle() {
-  if (DriveAuth.isConnected()) return h("span", { class: "pill ok" }, "Google ✓");
-  return h("button", {
+  if (DriveAuth.aRelais()) {
+    return h("button", {
+      class: "pill ok",
+      onclick: () => {
+        if (!confirm("Drive passe par ton relais : connexion permanente.\n\nRetirer le relais de cet appareil ? (retour à la connexion Google d'1 h)")) return;
+        DriveAuth.retirerRelais();
+        renderAccueil();
+      },
+    }, "Drive ✓");
+  }
+  const reglerRelais = h("button", {
+    class: "pill",
+    onclick: async (ev) => {
+      const url = prompt("Colle l'adresse de ton relais Drive (https://script.google.com/macros/s/…/exec) :");
+      if (!url) return;
+      ev.target.disabled = true;
+      ev.target.textContent = "Vérification…";
+      try {
+        await DriveAuth.configurerRelais(url);
+        alert("✅ Relais Drive en place : plus besoin de se reconnecter à Google sur cet appareil.");
+      } catch (err) {
+        alert("Relais pas enregistré : " + err.message);
+      }
+      renderAccueil();
+    },
+  }, "Relais Drive");
+  if (DriveAuth.isConnected()) return h("span", { class: "row-pills" }, h("span", { class: "pill ok" }, "Google ✓"), reglerRelais);
+  return h("span", { class: "row-pills" }, h("button", {
     class: "pill",
     onclick: async () => {
       try { await DriveAuth.ensureToken(); } catch (err) { alert("Connexion Google : " + err.message); }
       renderAccueil();
     },
-  }, "Se connecter à Google");
+  }, "Se connecter à Google"), reglerRelais);
 }
 
 function resumeCourt(archive) {
