@@ -185,7 +185,7 @@ button:active { transform: scale(0.97); }
 .btn-chrono.running { background: var(--warn); color: #1a1205; font-weight: 700; }
 
 .exo-actions { display: flex; gap: 0.5rem; }
-.exo-actions button { flex: 1; font-size: 0.88rem; padding: 0.5rem; }
+.exo-actions button { flex: 1; font-size: 0.82rem; padding: 0.5rem 0.3rem; white-space: nowrap; }
 
 .comment-box {
   width: 100%;
@@ -270,3 +270,31 @@ details summary { color: var(--muted); cursor: pointer; }
 .coach-box.old { border-color: var(--warn); }
 .warn-txt { color: #fcd34d; }
 .coach { font-size: 0.95rem; background: #1f1a3a; border-left: 3px solid #7c3aed; padding: 0.45rem 0.6rem; border-radius: 6px; }
+
+/* ---------- Séance en pages (08/11/2026) : un exercice par page, on glisse de l'un à l'autre ---------- */
+.pages-nav { display: flex; align-items: center; gap: 0.35rem; }
+.nav-fleche { flex: 0 0 auto; width: 2.1rem; height: 2.1rem; padding: 0; font-size: 1.5rem; line-height: 1; background: var(--card); }
+.nav-fleche:disabled { opacity: 0.25; }
+.dots { flex: 1; display: flex; justify-content: center; flex-wrap: wrap; gap: 0.22rem; }
+.dot { width: 1.65rem; height: 1.65rem; padding: 0; border-radius: 50%; font-size: 0.75rem; font-weight: 700; background: var(--card); color: var(--muted); border: 2px solid transparent; }
+.dot.done { background: #123522; color: var(--ok); }
+.dot.partial { background: #3a2a0c; color: var(--warn); }
+.dot.skip { background: #3a1616; color: #f87171; }
+.dot.current { border-color: var(--accent); color: var(--text); }
+.dot.fin { font-size: 0.85rem; }
+
+.page.from-right { animation: glisse-droite 0.22s ease-out; }
+.page.from-left { animation: glisse-gauche 0.22s ease-out; }
+@keyframes glisse-droite { from { transform: translateX(40px); opacity: 0.3; } to { transform: none; opacity: 1; } }
+@keyframes glisse-gauche { from { transform: translateX(-40px); opacity: 0.3; } to { transform: none; opacity: 1; } }
+
+.derniere-btn { display: flex; justify-content: space-between; align-items: center; width: 100%; padding: 0; background: transparent; text-align: left; }
+.derniere-btn .label { color: #93c5fd; }
+.grille { border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.grille th { font-size: 0.72rem; color: var(--muted); font-weight: 600; text-align: center; padding: 0 0.9rem 0.15rem; }
+.grille td { text-align: center; padding: 0.1rem 0.9rem; font-weight: 700; font-size: 1rem; }
+.grille td.muted { font-weight: 400; font-size: 0.78rem; padding-left: 0; }
+.grille-ligne { font-weight: 700; font-variant-numeric: tabular-nums; }
+.deroule { font-size: 0.95rem; font-weight: 600; color: var(--text); }
+.infos { display: flex; flex-direction: column; gap: 0.35rem; font-size: 0.85rem; color: #c9d4e6; background: var(--bg); border-radius: 10px; padding: 0.6rem 0.75rem; }
+.infos strong { color: var(--muted); font-weight: 600; }

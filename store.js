@@ -506,6 +506,8 @@ function formatSerie(exo, s) {
   }
   if (exo.type_mesure === "reps_seules") return `${s.reps ?? "?"} reps`;
   if (s.reps == null) return formatCharge(exo, s.charge);
+  /* Série sans charge (releveur depuis le 08/11/2026 : distance plus notée) : « 20 reps ». */
+  if (s.charge == null) return `${s.reps} reps`;
   return `${s.reps} × ${formatCharge(exo, s.charge)}`;
 }
 

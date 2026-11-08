@@ -16,7 +16,9 @@
      ({ reps, charge } ; une valeur absente = reprise de l'échauffement de la dernière fois).
      Sur un unilatéral, la liste vaut pour chaque côté, sauf avec rampe_bilaterale.
    - rampe_bilaterale : sur un unilatéral, l'échauffement se fait les deux jambes ensemble (pas de côté noté)
-   - reps_fixes : on valide la série sans saisir les reps (= haut de la cible)
+   - reps_fixes : on valide la série sans saisir les reps (= haut de la cible) ; avec « reps » dans saisie,
+     les reps restent corrigeables en touchant la série
+   - series_detail : ce qu'on fait à chaque série de travail (ex. corde : « deux pieds », « pas de course »…)
    - charge_lest : la charge est un lest ajouté au poids du corps ; 0 s'affiche « poids du corps »
    - ancien : true → exercice de l'ancien programme, gardé uniquement pour l'historique
 
@@ -25,29 +27,66 @@
 const LIBRARY = {
   /* ---------- Programme actuel : Fondation force (version du 03/10/2026) ----------
      Source : plan-bloc-1-reprise-fondation-force.md §4 « SÉANCE TYPE EN VIGUEUR » (projet Trail). */
-  corde: {
+  /* Corde par niveaux (08/11/2026, choix d'Alix : il aime, ça fait monter le cardio, et c'est de la pliométrie en bonus).
+     Elle sert d'échauffement et remplace les pogos / sauts, retirés de la séance le même jour.
+     « series_detail » : ce qu'on fait à chaque série, affiché dans la saisie. Passage de niveau au feeling. */
+  corde_n1: {
     saisie: ["duree"],
+    nom: "Corde à sauter — niveau 1", groupe: "pliométrie",
+    type_mesure: "temps", reglages: "surface souple",
+    cible_series: [4, 4], cible_temps_sec: [45, 45], repos_sec: [30, 30],
+    series_detail: ["deux pieds, facile", "pas de course (un pied puis l'autre)", "deux pieds", "pas de course"],
+    consignes: "Échauffement + pliométrie légère. Premier tour facile. Un raté, on relance : ça ne compte pas. Niveau suivant quand les 4 séries passent sans s'arrêter et sans être essoufflé.",
+  },
+  corde_n2: {
+    saisie: ["duree"],
+    nom: "Corde à sauter — niveau 2", groupe: "pliométrie",
+    type_mesure: "temps", reglages: "surface souple",
+    cible_series: [4, 4], cible_temps_sec: [60, 60], repos_sec: [30, 30],
+    series_detail: ["deux pieds, facile", "pas de course", "deux pieds, avec 10 sauts pied gauche puis 10 pied droit au milieu", "pas de course, un peu plus vite"],
+    consignes: "Comme le niveau 1, en séries d'1 minute, avec les premiers sauts sur un pied. Niveau suivant quand tout passe sans s'arrêter.",
+  },
+  corde_n3: {
+    saisie: ["duree"],
+    nom: "Corde à sauter — niveau 3", groupe: "pliométrie",
+    type_mesure: "temps", reglages: "surface souple",
+    cible_series: [5, 5], cible_temps_sec: [60, 60], repos_sec: [30, 30],
+    series_detail: ["deux pieds, facile", "pas de course", "20\" pied gauche · 20\" pied droit · 20\" deux pieds", "pas de course, rapide", "deux pieds, rapide : on fait monter le cardio"],
+    consignes: "5 minutes de corde au total. Les deux dernières séries font monter le cardio. Niveau suivant quand tout passe sans s'arrêter.",
+  },
+  corde_n4: {
+    saisie: ["duree"],
+    nom: "Corde à sauter — niveau 4", groupe: "pliométrie",
+    type_mesure: "temps", reglages: "surface souple",
+    cible_series: [3, 3], cible_temps_sec: [120, 120], repos_sec: [30, 30],
+    series_detail: ["2' en continu, au feeling", "2' en continu, au feeling", "2' en continu, finir rapide"],
+    consignes: "Libre et ludique : on mélange deux pieds, pas de course, pied gauche, pied droit, pieds croisés… sans s'arrêter.",
+  },
+  /* Ancienne corde de la Fondation (2 × 30", 03/10 → 08/11/2026), gardée pour l'historique. */
+  corde: {
+    ancien: true, saisie: ["duree"],
     nom: "Corde à sauter", groupe: "pliométrie",
     type_mesure: "temps", reglages: "surface souple",
     cible_series: [2, 2], cible_temps_sec: [30, 30], repos_sec: [60, 90],
     consignes: "Contacts au sol les plus brefs possible ; la hauteur ne compte pas.",
   },
+  /* Pogos et sauts : retirés de la séance le 08/11/2026 (Alix : « ça sert à rien »), gardés pour l'historique. */
   pogos_2pieds: {
-    saisie: [], reps_fixes: true,
+    ancien: true, saisie: [], reps_fixes: true,
     nom: "Pogos — deux pieds (niveau 1)", groupe: "pliométrie",
     type_mesure: "reps_seules", reglages: "surface souple",
     cible_series: [3, 3], cible_reps: [10, 10], repos_sec: [60, 90],
     consignes: "Petits rebonds sur place, genoux presque tendus : ça rebondit par les chevilles, contacts brefs. Niveau 2 après 2 séances sans symptôme et un test du lundi à 20 ou plus. On recule d'un niveau si les mollets sont pris le lendemain matin, si une douleur dépasse 2/10 ou si le test du lundi baisse. Jamais dans les 48 h avant une séance de descente.",
   },
   pogos_1jambe: {
-    saisie: [], reps_fixes: true,
+    ancien: true, saisie: [], reps_fixes: true,
     nom: "Pogos — une jambe (niveau 2)", groupe: "pliométrie", unilateral: true,
     type_mesure: "reps_seules", reglages: "surface souple",
     cible_series: [3, 3], cible_reps: [10, 10], repos_sec: [60, 90], repos_cotes_sec: null,
     consignes: "Même rebond sur place, sur une seule jambe. Niveau 3 quand le test est confirmé à 20-25 ou plus et que 20 sauts unipodaux passent sans symptôme. On recule d'un niveau si les mollets sont pris le lendemain matin, si une douleur dépasse 2/10 ou si le test du lundi baisse. Jamais dans les 48 h avant une séance de descente.",
   },
   sauts_unipodaux: {
-    saisie: [], reps_fixes: true,
+    ancien: true, saisie: [], reps_fixes: true,
     nom: "Sauts unipodaux + cloche-pied (niveau 3)", groupe: "pliométrie", unilateral: true,
     type_mesure: "reps_seules", reglages: "surface souple",
     cible_series: [3, 3], cible_reps: [5, 10], repos_sec: [60, 120], repos_cotes_sec: null,
@@ -78,11 +117,13 @@ const LIBRARY = {
     consignes: "Repli si l'unilatéral est trop long. Progression : quand les 3 séries passent à 8 reps à RIR 1, on alourdit et on repart à 6.",
   },
   releveur: {
-    saisie: ["reps", "charge"],
+    /* Distance plus notée depuis le 08/11/2026 (Alix : « je fais au feeling ») : une série = un appui, 20 reps.
+       Les anciennes séries gardent leur distance (« dist. 3 »), simple repère historique. */
+    saisie: ["reps"], reps_fixes: true,
     nom: "Releveur — élastique", groupe: "releveur", unilateral: true, premier_cote: "D", unite: "dist.", pas_charge: [0.5, 1],
     type_mesure: "reps_charge", reglages: "assis au sol, orteils griffés vers la plante, relevé 1 s / retour freiné 3 s",
     cible_series: [3, 3], cible_reps: [20, 20], repos_sec: null, repos_cotes_sec: null,
-    consignes: "3 × 20 par pied, les 3 dernières reps très dures (règle d'Alix du 11/10). La distance au point d'amarrage se règle au ressenti : reculer si c'est trop facile, avancer si les 20 ne passent pas ; la noter comme repère approximatif.",
+    consignes: "3 × 20 par pied, les 3 dernières reps très dures (règle d'Alix du 11/10). Distance au point d'amarrage au feeling, plus notée (08/11).",
   },
   soleaire_barre: {
     /* Abandonné le 10/10/2026, retiré de la séance le 11/10 (v2), gardé pour l'historique. */
@@ -113,7 +154,7 @@ const LIBRARY = {
     saisie: ["reps", "charge", "rir", "technique"],
     nom: "RDL — barre", groupe: "ischios", pas_charge: [5, 10],
     type_mesure: "reps_charge", reglages: "descente contrôlée, montée explosive",
-    rampe: "1 série d'approche : 70×6", rampe_series: [{ reps: 6, charge: 70 }], rir_cible: "1-2",
+    rampe: "barre vide × 6 (pour caler le geste) → 70 × 6", rampe_series: [{ reps: 6, charge: 20 }, { reps: 6, charge: 70 }], rir_cible: "1-2",
     cible_series: [2, 2], cible_reps: [6, 8], repos_sec: [120, 240],
     consignes: "Progression : quand les 2 séries passent à 8 reps propres à RIR 1, +5 kg (paliers de 5 kg à la maison) et on repart à 6.",
   },
@@ -126,12 +167,14 @@ const LIBRARY = {
     consignes: "Progression : quand les 2 séries passent à 8 reps propres à RIR 1, +5 kg (paliers de 5 kg à la maison) et on repart à 6.",
   },
   nordic: {
-    saisie: ["reps"],
+    /* 2 × 8 fixes depuis le 08/11/2026 (Alix : « toujours 8, la fourchette est inutile ») : une série = un appui.
+       Les reps restent corrigeables en touchant la série, si un jour il en fait moins. */
+    saisie: ["reps"], reps_fixes: true,
     nom: "Nordic curl", groupe: "ischios",
     type_mesure: "reps_seules", reglages: "",
     rampe: "aucun",
-    cible_series: [2, 2], cible_reps: [5, 8], repos_sec: [90, 120],
-    consignes: "Amplitude toujours la même, tout donner à chaque série (règle d'Alix du 11/10) : seules les reps comptent.",
+    cible_series: [2, 2], cible_reps: [8, 8], repos_sec: [90, 120],
+    consignes: "Amplitude toujours la même, tout donner à chaque série (règle d'Alix du 11/10).",
   },
 
   /* ---------- Force Bloc 1, version du 15/09 (historique uniquement) ---------- */
@@ -180,10 +223,11 @@ const REGLE_ENTRETIEN = "Entretien : on réduit la fréquence et le volume, jama
 
 const PROGRAMME = {
   FONDATION: {
-    id: "FONDATION", nom: "Fondation force", actif: true, version: 2, date_maj: "2026-10-11",
-    echauffement: "Footing 10'. L'échauffement propre à chaque exercice est indiqué dans sa fiche.",
+    id: "FONDATION", nom: "Fondation force", actif: true, version: 3, date_maj: "2026-11-08",
+    echauffement: "La corde sert d'échauffement (niveau au choix). L'échauffement de chaque exercice est pré-rempli dans sa saisie.",
     blocs: [
-      { titre: "Pliométrie", slots: ["corde", { variantes: ["pogos_2pieds", "pogos_1jambe", "sauts_unipodaux"] }] },
+      /* v3 (08/11/2026, choix d'Alix) : pogos et sauts retirés ; corde par niveaux, plus longue, en échauffement. */
+      { titre: "Corde (échauffement)", slots: [{ variantes: ["corde_n1", "corde_n2", "corde_n3", "corde_n4"] }] },
       { titre: "Mollet tendu + releveur (superset)", slots: [
         { variantes: ["mollet_tendu_uni_maison", "mollet_tendu_uni_smith", "mollet_tendu_smith"], superset: "mollet" },
         { exo: "releveur", superset: "mollet" },
@@ -198,25 +242,25 @@ const PROGRAMME = {
      encadré « SÉANCE D'ENTRETIEN »). Prend le relais de la fondation vers fin décembre 2026, 1×/semaine jusqu'au GTVO.
      Proposée dès maintenant à côté de « Fondation force » : Alix choisit au démarrage. */
   ENTRETIEN: {
-    id: "ENTRETIEN", nom: "Entretien force", actif: true, version: 1, date_maj: "2026-10-12",
-    echauffement: "Pas d'échauffement général (séance faite le jour d'une qualité, au moins 6 h après). L'échauffement propre à chaque exercice est indiqué dans sa fiche.",
+    id: "ENTRETIEN", nom: "Entretien force", actif: true, version: 2, date_maj: "2026-11-08",
+    echauffement: "La corde sert d'échauffement (séance faite le jour d'une qualité, au moins 6 h après). L'échauffement de chaque exercice est pré-rempli dans sa saisie.",
     consigne: REGLE_ENTRETIEN,
     blocs: [
-      /* Mêmes exos et mêmes niveaux qu'en fondation : leur dosage actuel tombe déjà dans les ~40-60 contacts. */
-      { titre: "Pliométrie (rappel, ~40-60 contacts)", slots: ["corde", { variantes: ["pogos_2pieds", "pogos_1jambe", "sauts_unipodaux"] }] },
+      /* v2 (08/11/2026) : comme en fondation, la corde par niveaux remplace pogos et sauts (niveau atteint repris). */
+      { titre: "Corde (échauffement)", slots: [{ variantes: ["corde_n1", "corde_n2", "corde_n3", "corde_n4"] }] },
       { titre: "Mollet tendu + releveur (superset)", slots: [
         { variantes: ["mollet_tendu_uni_maison", "mollet_tendu_uni_smith", "mollet_tendu_smith"], superset: "mollet",
           surcharge: { cible_series: [2, 2], rampe: "1 série plus légère sur les 2 jambes avant les 2 séries de travail, pour monter en charge",
             consignes: "Priorité de la séance. " + REGLE_ENTRETIEN } },
         { exo: "releveur", superset: "mollet",
-          surcharge: { cible_series: [2, 2], consignes: "2 × 20 par pied, les 3 dernières reps très dures. La distance au point d'amarrage se règle au ressenti ; la noter comme repère approximatif." } },
+          surcharge: { cible_series: [2, 2], consignes: "2 × 20 par pied, les 3 dernières reps très dures. Distance au feeling, plus notée." } },
       ] },
       /* Fente bulgare retirée de l'entretien (doublon du squat). */
       { titre: "Force", slots: [
         { exo: "squat", surcharge: { consignes: REGLE_ENTRETIEN } },
         { exo: "rdl", surcharge: { consignes: REGLE_ENTRETIEN } },
         { exo: "nordic", surcharge: { cible_series: [1, 1], facultatif: true,
-          consignes: "Facultatif : seulement si le temps le permet (pas fait = pas un écart). Amplitude toujours la même, tout donner : seules les reps comptent." } },
+          consignes: "Facultatif : seulement si le temps le permet (pas fait = pas un écart). Amplitude toujours la même, tout donner." } },
       ] },
     ],
   },
